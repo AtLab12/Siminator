@@ -1,6 +1,7 @@
+# macOS
+.DS_Store
+
 # Xcode
-#
-# gitignore contributors: remember to update Global/Xcode.gitignore, Objective-C.gitignore & Swift.gitignore
 
 ## User settings
 xcuserdata/
@@ -12,6 +13,9 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+DerivedData/
+Derived/
+build/
 
 ## Playgrounds
 timeline.xctimeline
@@ -30,6 +34,13 @@ playground.xcworkspace
 # .swiftpm
 
 .build/
+
+# Tuist
+.tuist/
+Tuist/.build/
+Tuist/Package.resolved
+Siminator.xcworkspace/
+Siminator.xcodeproj/
 
 # CocoaPods
 #
