@@ -5,13 +5,14 @@ import SwiftUI
 final class SimTrackingController {
     private enum Layout {
         static let size = CGSize(width: 260, height: 180)
-        static let gap: CGFloat = 10
-        static let simulatorScreenOffset: CGFloat = 65
     }
 
     private let panel: NSPanel
+    private let toolsState = ToolsHomeState()
     private var targetFrame: CGRect?
+    private var simulatorWindowNumber: Int?
     private var movementTimer: Timer?
+    var onNetworkingEnabledChanged: ((Bool) -> Void)?
 
     init() {
         panel = NSPanel(
@@ -32,8 +33,8 @@ final class SimTrackingController {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.isFloatingPanel = true
-        panel.level = .floating
+        panel.isFloatingPanel = false
+        panel.level = .normal
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [
             .canJoinAllSpaces,
@@ -41,7 +42,12 @@ final class SimTrackingController {
         ]
 
         let hostingView = NSHostingView(
-            rootView: ToolsHomeView()
+            rootView: ToolsHomeView(
+                state: toolsState,
+                onNetworkingEnabledChanged: { [weak self] isEnabled in
+                    self?.onNetworkingEnabledChanged?(isEnabled)
+                }
+            )
                 .frame(width: Layout.size.width, height: Layout.size.height)
         )
         hostingView.wantsLayer = true
@@ -50,28 +56,37 @@ final class SimTrackingController {
         panel.contentView = hostingView
     }
 
+    func setNetworkingEnabled(_ isEnabled: Bool) {
+        guard toolsState.showNetworkingSidebar != isEnabled else { return }
+        toolsState.showNetworkingSidebar = isEnabled
+    }
+
     func show() {
         guard !panel.isVisible else { return }
         panel.orderFrontRegardless()
+        orderAboveSimulatorWindow()
     }
 
     func hide() {
         stopMovementTimer()
         targetFrame = nil
+        simulatorWindowNumber = nil
         panel.orderOut(nil)
     }
 
-    func dock(to simulatorFrame: CGRect) {
+    func dock(to simulatorFrame: CGRect, simulatorWindowNumber: Int) {
+        self.simulatorWindowNumber = simulatorWindowNumber
+        let simulatorScreenFrame = SimulatorWindowGeometry.simulatorScreenFrame(from: simulatorFrame)
         var frame = panel.frame
 
-        frame.origin.x = simulatorFrame.maxX + Layout.gap
-        frame.origin.y = simulatorFrame.maxY - frame.height - Layout.simulatorScreenOffset
+        frame.origin.x = simulatorScreenFrame.maxX + SimulatorWindowGeometry.gap
+        frame.origin.y = simulatorScreenFrame.maxY - frame.height
 
-        let screen = NSScreen.screens.first { $0.visibleFrame.intersects(simulatorFrame) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { $0.visibleFrame.intersects(simulatorScreenFrame) } ?? NSScreen.main
 
         if let visible = screen?.visibleFrame {
             if frame.maxX > visible.maxX {
-                frame.origin.x = simulatorFrame.minX - Layout.gap - frame.width
+                frame.origin.x = simulatorScreenFrame.minX - SimulatorWindowGeometry.gap - frame.width
             }
 
             frame.origin.y = min(frame.origin.y, visible.maxY - frame.height)
@@ -81,11 +96,13 @@ final class SimTrackingController {
         if targetFrame == nil {
             targetFrame = frame
             panel.setFrame(frame, display: true, animate: false)
+            orderAboveSimulatorWindow()
             return
         }
 
         targetFrame = frame
         startMovementTimer()
+        orderAboveSimulatorWindow()
     }
 
     private func startMovementTimer() {
@@ -116,6 +133,7 @@ final class SimTrackingController {
 
         guard !currentFrame.isClose(to: targetFrame) else {
             panel.setFrame(targetFrame, display: true, animate: false)
+            orderAboveSimulatorWindow()
             stopMovementTimer()
             return
         }
@@ -126,6 +144,12 @@ final class SimTrackingController {
         let nextFrame = delta > 240 ? targetFrame : currentFrame.interpolated(to: targetFrame, amount: 0.4)
 
         panel.setFrame(nextFrame, display: true, animate: false)
+        orderAboveSimulatorWindow()
+    }
+
+    private func orderAboveSimulatorWindow() {
+        guard let simulatorWindowNumber, panel.isVisible else { return }
+        panel.order(.above, relativeTo: simulatorWindowNumber)
     }
 }
 

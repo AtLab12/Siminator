@@ -1,11 +1,16 @@
 import AppKit
 
+struct SimulatorWindowSnapshot {
+    let frame: CGRect
+    let windowNumber: Int
+}
+
 final class SimTrackingEngine {
-    var onSimulatorFrameChanged: ((CGRect?) -> Void)?
+    var onSimulatorFrameChanged: ((SimulatorWindowSnapshot?) -> Void)?
 
     private var simulatorPID: pid_t?
     private var pollingTimer: Timer?
-    private var lastPublishedFrame: CGRect?
+    private var lastPublishedSnapshot: SimulatorWindowSnapshot?
     private var didPublishMissingSimulator = false
     private var didRegisterWorkspaceObservers = false
 
@@ -50,7 +55,7 @@ final class SimTrackingEngine {
         guard let app = findSimulatorApplication() else {
             simulatorPID = nil
             stopPolling()
-            publishSimulatorFrame(nil)
+            publishSimulatorWindow(nil)
             return
         }
 
@@ -67,15 +72,15 @@ final class SimTrackingEngine {
     }
 
     private func updateSimulatorFrame() {
-        guard let simulatorPID, let frame = frontmostSimulatorWindowFrame(for: simulatorPID) else {
-            publishSimulatorFrame(nil)
+        guard let simulatorPID, let snapshot = frontmostSimulatorWindowSnapshot(for: simulatorPID) else {
+            publishSimulatorWindow(nil)
             return
         }
 
-        publishSimulatorFrame(frame)
+        publishSimulatorWindow(snapshot)
     }
 
-    private func frontmostSimulatorWindowFrame(for processIdentifier: pid_t) -> CGRect? {
+    private func frontmostSimulatorWindowSnapshot(for processIdentifier: pid_t) -> SimulatorWindowSnapshot? {
         guard let windowInfo = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else {
             return nil
         }
@@ -85,6 +90,7 @@ final class SimTrackingEngine {
                 numberValue(for: kCGWindowOwnerPID, in: window)?.int32Value == processIdentifier,
                 numberValue(for: kCGWindowLayer, in: window)?.intValue == 0,
                 (numberValue(for: kCGWindowAlpha, in: window)?.doubleValue ?? 1) > 0,
+                let windowNumber = numberValue(for: kCGWindowNumber, in: window)?.intValue,
                 let boundsDictionary = window[kCGWindowBounds as String] as? [String: Any],
                 let bounds = CGRect(dictionaryRepresentation: boundsDictionary as CFDictionary),
                 bounds.width > 100,
@@ -93,7 +99,10 @@ final class SimTrackingEngine {
                 continue
             }
 
-            return convertCGTopLeftToAppKitBottomLeft(bounds)
+            return SimulatorWindowSnapshot(
+                frame: convertCGTopLeftToAppKitBottomLeft(bounds),
+                windowNumber: windowNumber
+            )
         }
 
         return nil
@@ -116,9 +125,9 @@ final class SimTrackingEngine {
         pollingTimer = nil
     }
 
-    private func publishSimulatorFrame(_ frame: CGRect?) {
-        guard let frame else {
-            lastPublishedFrame = nil
+    private func publishSimulatorWindow(_ snapshot: SimulatorWindowSnapshot?) {
+        guard let snapshot else {
+            lastPublishedSnapshot = nil
 
             guard !didPublishMissingSimulator else { return }
             didPublishMissingSimulator = true
@@ -128,12 +137,12 @@ final class SimTrackingEngine {
 
         didPublishMissingSimulator = false
 
-        if let lastPublishedFrame, lastPublishedFrame.isClose(to: frame) {
-            return
-        }
+        if let lastPublishedSnapshot,
+           lastPublishedSnapshot.windowNumber == snapshot.windowNumber,
+           lastPublishedSnapshot.frame.isClose(to: snapshot.frame) { return }
 
-        lastPublishedFrame = frame
-        onSimulatorFrameChanged?(frame)
+        lastPublishedSnapshot = snapshot
+        onSimulatorFrameChanged?(snapshot)
     }
 
     // Minor helper to keep code readable

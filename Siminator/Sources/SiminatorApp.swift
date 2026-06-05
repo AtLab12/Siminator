@@ -14,19 +14,41 @@ struct SiminatorApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let panelController = SimTrackingController()
+    private let networkingSidebarController = NetworkingSidebarController()
     private let tracker = SimTrackingEngine()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        tracker.onSimulatorFrameChanged = { [weak self] frame in
+        panelController.onNetworkingEnabledChanged = { [weak self] isEnabled in
+            self?.networkingSidebarController.setEnabled(isEnabled)
+        }
+
+        networkingSidebarController.onEnabledChanged = { [weak self] isEnabled in
+            self?.panelController.setNetworkingEnabled(isEnabled)
+        }
+
+        tracker.onSimulatorFrameChanged = { [weak self] snapshot in
             guard let self else { return }
 
-            if let frame {
+            if let snapshot {
+                let frame = snapshot.frame
+
                 self.panelController.show()
-                self.panelController.dock(to: frame)
+                self.panelController.dock(
+                    to: frame,
+                    simulatorWindowNumber: snapshot.windowNumber
+                )
+                self.networkingSidebarController.update(
+                    simulatorFrame: frame,
+                    simulatorWindowNumber: snapshot.windowNumber
+                )
             } else {
                 self.panelController.hide()
+                self.networkingSidebarController.update(
+                    simulatorFrame: nil,
+                    simulatorWindowNumber: nil
+                )
             }
         }
 

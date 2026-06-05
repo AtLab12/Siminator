@@ -1,14 +1,26 @@
 import Foundation
 import SwiftUI
 
+final class ToolsHomeState: ObservableObject {
+    @Published var showNetworkingSidebar = false
+}
+
 struct ToolsHomeView: View {
+    @ObservedObject var state: ToolsHomeState
+
+    let onNetworkingEnabledChanged: (Bool) -> Void
+
     var body: some View {
         VStack {
             Text("Siminator by Mikolaj Zawada")
             
-            Text("Some tools will go here")
-            
-            Text("More will go here")
+            Toggle(isOn: $state.showNetworkingSidebar) {
+                Text("Show networking sidebar")
+            }
+            .toggleStyle(.switch)
+            .onChange(of: state.showNetworkingSidebar) { _, isEnabled in
+                onNetworkingEnabledChanged(isEnabled)
+            }
         }
         .padding(16)
         .frame(width: 260, height: 180)
