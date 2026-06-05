@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private enum Layout {
         static let width: CGFloat = 360
@@ -17,7 +18,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var isEnabled = false
     private var detachedFrame: CGRect?
     private var shouldOrderOutAfterAnimation = false
-    var onEnabledChanged: ((Bool) -> Void)?
+    var onEnabledChanged: (@MainActor (Bool) -> Void)?
 
     override init() {
         panel = NSPanel(
@@ -253,7 +254,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         guard movementTimer == nil else { return }
 
         let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
-            self?.moveTowardTargetFrame()
+            MainActor.assumeIsolated {
+                self?.moveTowardTargetFrame()
+            }
         }
 
         timer.tolerance = 0

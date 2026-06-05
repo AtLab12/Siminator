@@ -2,9 +2,9 @@ import SwiftUI
 
 @main
 struct SiminatorApp: App {
-    
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    
+
     var body: some Scene {
         Settings {
             EmptyView()
@@ -12,6 +12,7 @@ struct SiminatorApp: App {
     }
 }
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let panelController = SimTrackingController()
     private let networkingSidebarController = NetworkingSidebarController()

@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import SwiftUI
 
+@MainActor
 final class SimTrackingController {
     private enum Layout {
         static let size = CGSize(width: 260, height: 180)
@@ -12,7 +13,7 @@ final class SimTrackingController {
     private var targetFrame: CGRect?
     private var simulatorWindowNumber: Int?
     private var movementTimer: Timer?
-    var onNetworkingEnabledChanged: ((Bool) -> Void)?
+    var onNetworkingEnabledChanged: (@MainActor (Bool) -> Void)?
 
     init() {
         panel = NSPanel(
@@ -110,7 +111,9 @@ final class SimTrackingController {
 
         // Track at 120Hz for smooth visual
         let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
-            self?.moveTowardTargetFrame()
+            MainActor.assumeIsolated {
+                self?.moveTowardTargetFrame()
+            }
         }
 
         timer.tolerance = 0

@@ -1,12 +1,13 @@
 import AppKit
 
-struct SimulatorWindowSnapshot {
+struct SimulatorWindowSnapshot: Sendable {
     let frame: CGRect
     let windowNumber: Int
 }
 
+@MainActor
 final class SimTrackingEngine {
-    var onSimulatorFrameChanged: ((SimulatorWindowSnapshot?) -> Void)?
+    var onSimulatorFrameChanged: (@MainActor (SimulatorWindowSnapshot?) -> Void)?
 
     private var simulatorPID: pid_t?
     private var pollingTimer: Timer?
@@ -112,7 +113,9 @@ final class SimTrackingEngine {
         guard pollingTimer == nil else { return }
 
         let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
-            self?.updateSimulatorFrame()
+            MainActor.assumeIsolated {
+                self?.updateSimulatorFrame()
+            }
         }
 
         timer.tolerance = 0

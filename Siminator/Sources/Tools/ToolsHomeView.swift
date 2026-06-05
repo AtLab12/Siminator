@@ -1,14 +1,16 @@
 import Foundation
 import SwiftUI
 
-final class ToolsHomeState: ObservableObject {
-    @Published var showNetworkingSidebar = false
+@MainActor
+@Observable
+final class ToolsHomeState {
+    var showNetworkingSidebar = false
 }
 
 struct ToolsHomeView: View {
-    @ObservedObject var state: ToolsHomeState
+    @Bindable var state: ToolsHomeState
 
-    let onNetworkingEnabledChanged: (Bool) -> Void
+    let onNetworkingEnabledChanged: @MainActor (Bool) -> Void
 
     var body: some View {
         VStack {

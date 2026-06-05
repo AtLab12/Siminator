@@ -1,13 +1,15 @@
 import SwiftUI
 
-final class NetworkingSidebarState: ObservableObject {
-    @Published var isDetached = false
+@MainActor
+@Observable
+final class NetworkingSidebarState {
+    var isDetached = false
 }
 
 struct NetworkingSidebarView: View {
-    @ObservedObject var state: NetworkingSidebarState
+    let state: NetworkingSidebarState
 
-    let onDetachedChanged: (Bool) -> Void
+    let onDetachedChanged: @MainActor (Bool) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
