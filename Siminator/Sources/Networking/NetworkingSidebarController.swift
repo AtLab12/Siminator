@@ -289,7 +289,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             return
         }
 
-        let nextFrame = currentFrame.interpolated(to: targetFrame, amount: 0.24)
+        let nextFrame = currentFrame.interpolated(to: targetFrame, amount: 0.3)
         panel.setFrame(nextFrame, display: true, animate: false)
         orderBelowSimulatorWindow()
     }
@@ -301,13 +301,13 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 }
 
-// Keep the networking panel animation helpers local to the controller that owns the sliding sidebar behavior.
 private extension CGRect {
     func isClose(to other: CGRect) -> Bool {
-        abs(origin.x - other.origin.x) < 0.5
-            && abs(origin.y - other.origin.y) < 0.5
-            && abs(size.width - other.size.width) < 0.5
-            && abs(size.height - other.size.height) < 0.5
+        let distanceThreshold: CGFloat = 3.0
+        return abs(origin.x - other.origin.x) <= distanceThreshold
+            && abs(origin.y - other.origin.y) <= distanceThreshold
+            && abs(size.width - other.size.width) <= distanceThreshold
+            && abs(size.height - other.size.height) <= distanceThreshold
     }
 
     func interpolated(to other: CGRect, amount: CGFloat) -> CGRect {
