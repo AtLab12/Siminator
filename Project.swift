@@ -24,7 +24,12 @@ let project = Project(
                 "Siminator/Sources",
                 "Siminator/Resources",
             ],
-            dependencies: []
+            dependencies: [
+                .external(name: "NIOCore"),
+                .external(name: "NIOHTTP1"),
+                .external(name: "NIOHTTP2"),
+                .external(name: "NIOPosix"),
+            ]
         ),
         .target(
             name: "SiminatorTests",

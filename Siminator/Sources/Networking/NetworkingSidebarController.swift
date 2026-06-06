@@ -18,6 +18,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var isEnabled = false
     private var detachedFrame: CGRect?
     private var shouldOrderOutAfterAnimation = false
+    private let proxyServer = LocalHTTPProxyServer()
+    private let certificateTrustManager = CertificateTrustManager()
+    private let systemProxySettingsManager = SystemProxySettingsManager()
+    private var proxyControlTask: Task<Void, Never>?
+    private var certificateInstallTask: Task<Void, Never>?
     var onEnabledChanged: (@MainActor (Bool) -> Void)?
 
     override init() {
@@ -51,6 +56,12 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                 state: state,
                 onDetachedChanged: { [weak self] isDetached in
                     self?.setDetached(isDetached)
+                },
+                onCaptureToggled: { [weak self] in
+                    self?.toggleCapture()
+                },
+                onCertificateInstallRequested: { [weak self] in
+                    self?.requestCertificateInstall()
                 }
             )
         )
@@ -59,6 +70,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         panel.contentView = hostingView
         configureDockedPanel()
+        refreshCertificateTrustState()
     }
 
     func setEnabled(_ isEnabled: Bool) {
@@ -298,6 +310,169 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         guard !state.isDetached else { return }
         guard let simulatorWindowNumber, panel.isVisible else { return }
         panel.order(.below, relativeTo: simulatorWindowNumber)
+    }
+
+    private func toggleCapture() {
+        if state.isCaptureRunning || state.isCaptureStarting {
+            stopCapture()
+        } else {
+            startCapture()
+        }
+    }
+
+    private func startCapture() {
+        guard proxyControlTask == nil else { return }
+
+        state.isCaptureStarting = true
+        state.captureStatus = "Starting proxy on 127.0.0.1:9090"
+
+        proxyControlTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await refreshCertificateTrustState()
+
+                if !state.isCertificateTrusted {
+                    let didInstallCertificate = await performCertificateInstallFlow()
+                    guard didInstallCertificate else {
+                        state.captureStatus = "Proxy start cancelled"
+                        state.isCaptureStarting = false
+                        proxyControlTask = nil
+                        return
+                    }
+                }
+
+                let port = try await proxyServer.start(port: 9090)
+                state.proxyPort = port
+
+                guard confirmSystemProxyEnable(port: port) else {
+                    try await proxyServer.stop()
+                    state.captureStatus = "Proxy start cancelled"
+                    state.proxyRoutingStatus = "System proxy disabled"
+                    state.isCaptureStarting = false
+                    proxyControlTask = nil
+                    return
+                }
+
+                let services = try await systemProxySettingsManager.enableProxy(host: "127.0.0.1", port: port)
+                state.isCaptureRunning = true
+                state.captureStatus = "Listening on 127.0.0.1:\(port)"
+                state.proxyRoutingStatus = "Routing enabled: \(services.joined(separator: ", "))"
+            } catch {
+                state.captureStatus = "Failed to start proxy: \(error.localizedDescription)"
+                state.proxyRoutingStatus = "System proxy disabled"
+                try? await proxyServer.stop()
+            }
+
+            state.isCaptureStarting = false
+            proxyControlTask = nil
+        }
+    }
+
+    private func refreshCertificateTrustState() {
+        Task { [weak self] in
+            guard let self else { return }
+            try? await refreshCertificateTrustState()
+        }
+    }
+
+    private func refreshCertificateTrustState() async throws {
+        let trustState = try await certificateTrustManager.trustState()
+        state.isCertificateTrusted = trustState.isTrusted
+
+        if trustState.isTrusted {
+            state.certificateStatus = "Trusted: \(trustState.certificateURL?.lastPathComponent ?? "Siminator Root CA")"
+        } else if trustState.certificateURL != nil {
+            state.certificateStatus = "Certificate generated but not trusted"
+        } else {
+            state.certificateStatus = "Certificate not trusted"
+        }
+    }
+
+    private func stopCapture() {
+        proxyControlTask?.cancel()
+        proxyControlTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await systemProxySettingsManager.restoreProxySettings()
+                try await proxyServer.stop()
+                state.captureStatus = "Proxy stopped"
+                state.proxyRoutingStatus = "System proxy restored"
+            } catch {
+                state.captureStatus = "Failed to stop proxy: \(error.localizedDescription)"
+            }
+
+            state.isCaptureStarting = false
+            state.isCaptureRunning = false
+            proxyControlTask = nil
+        }
+    }
+
+    @discardableResult
+    private func performCertificateInstallFlow() async -> Bool {
+        guard confirmCertificateTrust() else {
+            state.certificateStatus = "Certificate trust cancelled"
+            return false
+        }
+
+        state.isCertificateInstalling = true
+        state.certificateStatus = "Installing certificate in login keychain"
+
+        do {
+            let certificateURL = try await certificateTrustManager.installTrustedRootCertificate()
+            state.isCertificateTrusted = true
+            state.certificateStatus = "Trusted: \(certificateURL.lastPathComponent)"
+            state.isCertificateInstalling = false
+            return true
+        } catch {
+            state.isCertificateTrusted = false
+            state.certificateStatus = "Certificate install failed: \(error.localizedDescription)"
+            state.isCertificateInstalling = false
+            return false
+        }
+    }
+
+    private func requestCertificateInstall() {
+        guard certificateInstallTask == nil else { return }
+
+        certificateInstallTask = Task { [weak self] in
+            guard let self else { return }
+            _ = await performCertificateInstallFlow()
+            certificateInstallTask = nil
+        }
+    }
+
+    private func confirmCertificateTrust() -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Trust Siminator Root Certificate?"
+        alert.informativeText = """
+        Siminator needs a local root certificate to decrypt and display HTTPS traffic. The certificate and private key are generated on this Mac and stored in your user Application Support folder.
+
+        macOS will add this certificate as trusted for your login keychain. Only continue if you want Siminator to inspect HTTPS traffic from this Mac.
+        """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Trust and Install")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func confirmSystemProxyEnable(port: Int) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = "Route Mac Traffic Through Siminator?"
+        alert.informativeText = """
+        Siminator needs to update macOS Web Proxy and Secure Web Proxy settings so apps send HTTP and HTTPS traffic to 127.0.0.1:\(port).
+
+        macOS may ask for an administrator password. Siminator will restore the previous proxy settings when capture stops.
+        """
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Enable Proxy")
+        alert.addButton(withTitle: "Cancel")
+
+        NSApp.activate()
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }
 
