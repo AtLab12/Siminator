@@ -345,15 +345,6 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                 let port = try await proxyServer.start(port: 9090)
                 state.proxyPort = port
 
-                guard confirmSystemProxyEnable(port: port) else {
-                    try await proxyServer.stop()
-                    state.captureStatus = "Proxy start cancelled"
-                    state.proxyRoutingStatus = "System proxy disabled"
-                    state.isCaptureStarting = false
-                    proxyControlTask = nil
-                    return
-                }
-
                 let services = try await systemProxySettingsManager.enableProxy(host: "127.0.0.1", port: port)
                 state.isCaptureRunning = true
                 state.captureStatus = "Listening on 127.0.0.1:\(port)"
@@ -447,28 +438,12 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         let alert = NSAlert()
         alert.messageText = "Trust Siminator Root Certificate?"
         alert.informativeText = """
-        Siminator needs a local root certificate to decrypt and display HTTPS traffic. The certificate and private key are generated on this Mac and stored in your user Application Support folder.
+        Siminator needs a local root certificate to decrypt and display HTTPS traffic. The certificate and private key are generated on this Mac. The private key is imported into your login keychain and removed from file storage.
 
         macOS will add this certificate as trusted for your login keychain. Only continue if you want Siminator to inspect HTTPS traffic from this Mac.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Trust and Install")
-        alert.addButton(withTitle: "Cancel")
-
-        NSApp.activate()
-        return alert.runModal() == .alertFirstButtonReturn
-    }
-
-    private func confirmSystemProxyEnable(port: Int) -> Bool {
-        let alert = NSAlert()
-        alert.messageText = "Route Mac Traffic Through Siminator?"
-        alert.informativeText = """
-        Siminator needs to update macOS Web Proxy and Secure Web Proxy settings so apps send HTTP and HTTPS traffic to 127.0.0.1:\(port).
-
-        macOS may ask for an administrator password. Siminator will restore the previous proxy settings when capture stops.
-        """
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "Enable Proxy")
         alert.addButton(withTitle: "Cancel")
 
         NSApp.activate()

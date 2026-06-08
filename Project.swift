@@ -22,14 +22,28 @@ let project = Project(
             ]),
             buildableFolders: [
                 "Siminator/Sources",
+                "Siminator/Shared",
                 "Siminator/Resources",
             ],
             dependencies: [
+                .target(name: "SiminatorProxyHelper"),
                 .external(name: "NIOCore"),
                 .external(name: "NIOHTTP1"),
                 .external(name: "NIOHTTP2"),
                 .external(name: "NIOPosix"),
             ]
+        ),
+        .target(
+            name: "SiminatorProxyHelper",
+            destinations: .macOS,
+            product: .commandLineTool,
+            bundleId: "dev.atlab.Siminator.ProxyHelper",
+            infoPlist: .default,
+            buildableFolders: [
+                "SiminatorProxyHelper/Sources",
+                "Siminator/Shared",
+            ],
+            dependencies: []
         ),
         .target(
             name: "SiminatorTests",

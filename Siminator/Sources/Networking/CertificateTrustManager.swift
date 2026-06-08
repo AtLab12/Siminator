@@ -12,13 +12,15 @@ actor CertificateTrustManager {
     func trustState() throws -> CertificateTrustState {
         let directoryURL = try certificateDirectoryURL()
         let certificateURL = directoryURL.appendingPathComponent(Constants.certificateFilename)
+        let privateKeyURL = directoryURL.appendingPathComponent(Constants.privateKeyFilename)
         let trustedMarkerURL = directoryURL.appendingPathComponent(Constants.trustedMarkerFilename)
 
         let hasCertificate = FileManager.default.fileExists(atPath: certificateURL.path)
-        let hasPrivateKey = hasImportedPrivateKey()
+        let hasUserTrustedMarker = FileManager.default.fileExists(atPath: trustedMarkerURL.path)
         let isTrusted = hasCertificate
-            && hasPrivateKey
-            && FileManager.default.fileExists(atPath: trustedMarkerURL.path)
+            && (hasUserTrustedMarker || isCertificatePresentInLoginKeychain(certificateURL))
+
+        try removePrivateKeyFileIfPresent(at: privateKeyURL)
 
         return CertificateTrustState(
             certificateURL: hasCertificate ? certificateURL : nil,
@@ -29,6 +31,11 @@ actor CertificateTrustManager {
     func installTrustedRootCertificate() throws -> URL {
         let certificateURL = try ensureRootCertificateExists()
         let keychainPath = loginKeychainPath
+
+        if isCertificatePresentInLoginKeychain(certificateURL) {
+            try writeTrustedMarker()
+            return certificateURL
+        }
 
         _ = try ExecutableHelper().runExecutable(
             "/usr/bin/security",
@@ -42,14 +49,7 @@ actor CertificateTrustManager {
             ]
         )
 
-        let trustedMarkerURL = try certificateDirectoryURL()
-            .appendingPathComponent(Constants.trustedMarkerFilename)
-
-        try "trusted\n".write(
-            to: trustedMarkerURL,
-            atomically: true,
-            encoding: .utf8
-        )
+        try writeTrustedMarker()
 
         return certificateURL
     }
@@ -59,19 +59,16 @@ actor CertificateTrustManager {
         let certificateURL = directoryURL.appendingPathComponent(Constants.certificateFilename)
         let privateKeyURL = directoryURL.appendingPathComponent(Constants.privateKeyFilename)
 
-        if FileManager.default.fileExists(atPath: certificateURL.path),
-           hasImportedPrivateKey() {
+        if FileManager.default.fileExists(atPath: certificateURL.path) {
             try removePrivateKeyFileIfPresent(at: privateKeyURL)
             return certificateURL
         }
 
         try? FileManager.default.removeItem(at: certificateURL)
-        try? FileManager.default.removeItem(
-            at: directoryURL.appendingPathComponent(Constants.trustedMarkerFilename)
-        )
-        try removePrivateKeyFileIfPresent(at: privateKeyURL)
-
+        try? FileManager.default.removeItem(at: directoryURL.appendingPathComponent(Constants.trustedMarkerFilename))
+        
         defer {
+            // Extra cleanup step to be sure
             try? removePrivateKeyFileIfPresent(at: privateKeyURL)
         }
 
@@ -133,19 +130,65 @@ actor CertificateTrustManager {
         )
     }
 
-    private func hasImportedPrivateKey() -> Bool {
-        let result = try? ExecutableHelper().runExecutable(
+    private func writeTrustedMarker() throws {
+        let trustedMarkerURL = try certificateDirectoryURL()
+            .appendingPathComponent(Constants.trustedMarkerFilename)
+
+        try "trusted\n".write(
+            to: trustedMarkerURL,
+            atomically: true,
+            encoding: .utf8
+        )
+    }
+
+    private func isCertificatePresentInLoginKeychain(_ certificateURL: URL) -> Bool {
+        guard let fingerprint = try? certificateFingerprint(certificateURL) else {
+            return false
+        }
+
+        guard let output = try? ExecutableHelper().runExecutable(
             "/usr/bin/security",
             arguments: [
-                "find-key",
-                "-t", "private",
-                "-l", Constants.privateKeyLabel,
-                "-s",
+                "find-certificate",
+                "-a",
+                "-Z",
                 loginKeychainPath
+            ]
+        ) else {
+            return false
+        }
+
+        return normalizedFingerprint(output).contains(fingerprint)
+    }
+
+    private func certificateFingerprint(_ certificateURL: URL) throws -> String {
+        let output = try ExecutableHelper().runExecutable(
+            "/usr/bin/openssl",
+            arguments: [
+                "x509",
+                "-in", certificateURL.path,
+                "-noout",
+                "-fingerprint",
+                "-sha256"
             ]
         )
 
-        return result != nil
+        guard let fingerprint = output
+            .split(separator: "\n")
+            .first(where: { $0.contains("Fingerprint=") })?
+            .split(separator: "=", maxSplits: 1)
+            .last
+            .map(String.init) else {
+            return ""
+        }
+
+        return normalizedFingerprint(fingerprint)
+    }
+
+    private func normalizedFingerprint(_ value: String) -> String {
+        value
+            .uppercased()
+            .filter { $0.isHexDigit }
     }
 
     private var loginKeychainPath: String {

@@ -1,6 +1,8 @@
 import Foundation
 
 actor SystemProxySettingsManager {
+    private let helperClient = PrivilegedProxyHelperClient()
+
     private struct ServiceProxyState {
         let service: String
         let webProxy: ProxyState
@@ -16,7 +18,15 @@ actor SystemProxySettingsManager {
     private var previousStates: [ServiceProxyState] = []
 
     // Enables the proxy for the given host and port on all enabled network services
-    func enableProxy(host: String, port: Int) throws -> [String] {
+    func enableProxy(host: String, port: Int) async throws -> [String] {
+        try await helperClient.enableProxy(host: host, port: port)
+    }
+
+    func restoreProxySettings() async throws {
+        try await helperClient.restoreProxySettings()
+    }
+
+    private func enableProxyWithAppleScript(host: String, port: Int) throws -> [String] {
         let services = try enabledNetworkServices()
         guard !services.isEmpty else {
             throw ProxyError.noNetworkServices
@@ -43,7 +53,7 @@ actor SystemProxySettingsManager {
         return services
     }
 
-    func restoreProxySettings() throws {
+    private func restoreProxySettingsWithAppleScript() throws {
         guard !previousStates.isEmpty else { return }
 
         let commands = previousStates.flatMap { state in
