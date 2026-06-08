@@ -26,7 +26,7 @@ The idea is simple: **one focused workspace for debugging, capturing, and shapin
   <img src="./NetworkLogging.png" alt="Siminator networking panel docked next to an iPhone Simulator, showing live captured requests with status glows" width="920" />
 </p>
 
-<p align="center"><em>Networking panel with live session capture, trusted MITM proxy, and request status at a glance.</em></p>
+<p align="center"><em>Networking panel with live session capture.</em></p>
 
 ---
 
@@ -39,6 +39,7 @@ The idea is simple: **one focused workspace for debugging, capturing, and shapin
 | **Session storage** | Record and browse captured requests per live session |
 | **Simulator tracking** | Follows the Simulator window as you move or resize it |
 | **Menu bar app** | Runs as a lightweight accessory app — stays out of your way until you need it |
+| **Networking window** | Networking window can be closed or hidden behind the simulator. |
 
 ---
 
