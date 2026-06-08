@@ -36,6 +36,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.panelController.setNetworkingEnabled(isEnabled)
         }
 
+        panelController.onPanelInteraction = { [weak self] in
+            self?.bringSimulatorWorkspaceToFront()
+        }
+
+        networkingSidebarController.onPanelInteraction = { [weak self] in
+            self?.bringSimulatorWorkspaceToFront()
+        }
+
         tracker.onSimulatorFrameChanged = { [weak self] snapshot in
             guard let self else { return }
 
@@ -61,5 +69,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         tracker.start()
+    }
+
+    private func bringSimulatorWorkspaceToFront() {
+        activateSimulatorIfRunning()
+        bringSiminatorPanelsToFront()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.bringSiminatorPanelsToFront()
+        }
+    }
+
+    private func activateSimulatorIfRunning() {
+        guard let simulator = NSWorkspace.shared.runningApplications.first(where: {
+            $0.bundleIdentifier == "com.apple.iphonesimulator"
+                || $0.localizedName == "Simulator"
+        }) else {
+            return
+        }
+
+        simulator.activate(options: [.activateAllWindows])
+    }
+
+    private func bringSiminatorPanelsToFront() {
+        panelController.bringToFrontWithSimulator()
+        networkingSidebarController.bringToFrontWithSimulator()
     }
 }

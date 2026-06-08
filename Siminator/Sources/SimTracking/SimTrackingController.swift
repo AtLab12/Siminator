@@ -8,15 +8,16 @@ final class SimTrackingController {
         static let size = CGSize(width: 260, height: 180)
     }
 
-    private let panel: NSPanel
+    private let panel: SiminatorPanel
     private let toolsState = ToolsHomeState()
     private var targetFrame: CGRect?
     private var simulatorWindowNumber: Int?
     private var movementTimer: Timer?
     var onNetworkingEnabledChanged: (@MainActor (Bool) -> Void)?
+    var onPanelInteraction: (@MainActor () -> Void)?
 
     init() {
-        panel = NSPanel(
+        panel = SiminatorPanel(
             contentRect: NSRect(
                 x: 100,
                 y: 100,
@@ -55,6 +56,9 @@ final class SimTrackingController {
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 
         panel.contentView = hostingView
+        panel.onUserInteraction = { [weak self] in
+            self?.onPanelInteraction?()
+        }
     }
 
     func setNetworkingEnabled(_ isEnabled: Bool) {
@@ -103,6 +107,12 @@ final class SimTrackingController {
 
         targetFrame = frame
         startMovementTimer()
+        orderAboveSimulatorWindow()
+    }
+
+    func bringToFrontWithSimulator() {
+        guard panel.isVisible else { return }
+        panel.orderFrontRegardless()
         orderAboveSimulatorWindow()
     }
 

@@ -9,7 +9,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         static let cornerRadius: CGFloat = 18
     }
 
-    private let panel: NSPanel
+    private let panel: SiminatorPanel
     private let state = NetworkingSidebarState()
     private var simulatorFrame: CGRect?
     private var simulatorWindowNumber: Int?
@@ -25,9 +25,10 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var certificateInstallTask: Task<Void, Never>?
     private var captureOperationID = 0
     var onEnabledChanged: (@MainActor (Bool) -> Void)?
+    var onPanelInteraction: (@MainActor () -> Void)?
 
     override init() {
-        panel = NSPanel(
+        panel = SiminatorPanel(
             contentRect: NSRect(x: 100, y: 100, width: Layout.width, height: 600),
             styleMask: [
                 .borderless,
@@ -70,6 +71,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 
         panel.contentView = hostingView
+        panel.onUserInteraction = { [weak self] in
+            self?.onPanelInteraction?()
+        }
         configureDockedPanel()
         refreshCertificateTrustState()
     }
@@ -111,6 +115,18 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         setEnabled(false)
         onEnabledChanged?(false)
         return false
+    }
+
+    func bringToFrontWithSimulator() {
+        guard panel.isVisible else { return }
+
+        if state.isDetached {
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        } else {
+            panel.orderFrontRegardless()
+            orderBelowSimulatorWindow()
+        }
     }
 
     private func setDetached(_ isDetached: Bool) {
