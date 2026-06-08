@@ -6,6 +6,13 @@ struct SiminatorApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
+        MenuBarExtra("Siminator", systemImage: "star") {
+            Button("Quit Siminator") {
+                NSApplication.shared.terminate(nil)
+            }
+            .keyboardShortcut("q")
+        }
+
         Settings {
             EmptyView()
         }

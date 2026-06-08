@@ -23,6 +23,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private let systemProxySettingsManager = SystemProxySettingsManager()
     private var proxyControlTask: Task<Void, Never>?
     private var certificateInstallTask: Task<Void, Never>?
+    private var captureOperationID = 0
     var onEnabledChanged: (@MainActor (Bool) -> Void)?
 
     override init() {
@@ -186,9 +187,10 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             .miniaturizable,
             .resizable
         ]
-        panel.title = "Networking"
         panel.titleVisibility = .visible
         panel.titlebarAppearsTransparent = false
+        panel.titlebarSeparatorStyle = .shadow
+        panel.toolbarStyle = .automatic
         panel.isMovable = true
         panel.isMovableByWindowBackground = false
         panel.minSize = NSSize(width: Layout.width, height: Layout.minimumDetachedHeight)
@@ -313,7 +315,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     private func toggleCapture() {
-        if state.isCaptureRunning || state.isCaptureStarting {
+        guard !state.isCaptureStarting, !state.isCaptureStopping else {
+            return
+        }
+
+        if state.isCaptureRunning {
             stopCapture()
         } else {
             startCapture()
@@ -323,7 +329,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private func startCapture() {
         guard proxyControlTask == nil else { return }
 
+        captureOperationID += 1
+        let operationID = captureOperationID
+
         state.isCaptureStarting = true
+        state.isCaptureStopping = false
         state.captureStatus = "Starting proxy on 127.0.0.1:9090"
 
         proxyControlTask = Task { [weak self] in
@@ -331,32 +341,52 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
             do {
                 try await refreshCertificateTrustState()
+                guard isCurrentCaptureOperation(operationID) else { return }
 
                 if !state.isCertificateTrusted {
                     let didInstallCertificate = await performCertificateInstallFlow()
+                    guard isCurrentCaptureOperation(operationID) else { return }
+
                     guard didInstallCertificate else {
                         state.captureStatus = "Proxy start cancelled"
                         state.isCaptureStarting = false
+                        state.isCaptureStopping = false
                         proxyControlTask = nil
                         return
                     }
                 }
 
                 let port = try await proxyServer.start(port: 9090)
+                guard isCurrentCaptureOperation(operationID) else { return }
+
                 state.proxyPort = port
+                state.isCaptureRunning = true
+                state.isCaptureStarting = false
+                state.captureStatus = "Listening on 127.0.0.1:\(port)"
+                state.proxyRoutingStatus = "Enabling system proxy"
 
                 let services = try await systemProxySettingsManager.enableProxy(host: "127.0.0.1", port: port)
-                state.isCaptureRunning = true
+                guard isCurrentCaptureOperation(operationID) else { return }
+
                 state.captureStatus = "Listening on 127.0.0.1:\(port)"
                 state.proxyRoutingStatus = "Routing enabled: \(services.joined(separator: ", "))"
             } catch {
-                state.captureStatus = "Failed to start proxy: \(error.localizedDescription)"
-                state.proxyRoutingStatus = "System proxy disabled"
-                try? await proxyServer.stop()
+                guard isCurrentCaptureOperation(operationID) else { return }
+
+                if state.isCaptureRunning {
+                    state.proxyRoutingStatus = "System proxy failed: \(error.localizedDescription)"
+                } else {
+                    state.captureStatus = "Failed to start proxy: \(error.localizedDescription)"
+                    state.proxyRoutingStatus = "System proxy disabled"
+                    try? await proxyServer.stop()
+                }
             }
 
-            state.isCaptureStarting = false
-            proxyControlTask = nil
+            if isCurrentCaptureOperation(operationID) {
+                state.isCaptureStarting = false
+                state.isCaptureStopping = false
+                proxyControlTask = nil
+            }
         }
     }
 
@@ -381,7 +411,14 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     private func stopCapture() {
+        guard !state.isCaptureStopping else { return }
+
+        captureOperationID += 1
         proxyControlTask?.cancel()
+        state.isCaptureStopping = true
+        state.isCaptureStarting = false
+        state.captureStatus = "Stopping proxy"
+
         proxyControlTask = Task { [weak self] in
             guard let self else { return }
 
@@ -395,9 +432,14 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             }
 
             state.isCaptureStarting = false
+            state.isCaptureStopping = false
             state.isCaptureRunning = false
             proxyControlTask = nil
         }
+    }
+
+    private func isCurrentCaptureOperation(_ operationID: Int) -> Bool {
+        captureOperationID == operationID && !Task.isCancelled
     }
 
     @discardableResult
