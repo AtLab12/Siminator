@@ -18,7 +18,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var isEnabled = false
     private var detachedFrame: CGRect?
     private var shouldOrderOutAfterAnimation = false
-    private let proxyServer = LocalHTTPProxyServer()
+    private lazy var proxyServer = LocalHTTPProxyServer { [weak self] event in
+        self?.state.handleRequestEvent(event)
+    }
     private let certificateTrustManager = CertificateTrustManager()
     private let systemProxySettingsManager = SystemProxySettingsManager()
     private var proxyControlTask: Task<Void, Never>?
@@ -283,7 +285,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private func startMovementTimer() {
         guard movementTimer == nil else { return }
 
-        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / SiminatorConst.refreshRate, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.moveTowardTargetFrame()
             }
@@ -350,7 +352,8 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         state.isCaptureStarting = true
         state.isCaptureStopping = false
-        state.captureStatus = "Starting proxy on 127.0.0.1:9090"
+        state.captureStatus = "Starting proxy on \(ProxyConstants.host):\(ProxyConstants.port)"
+        state.beginNewSession()
 
         proxyControlTask = Task { [weak self] in
             guard let self else { return }
@@ -372,19 +375,18 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                     }
                 }
 
-                let port = try await proxyServer.start(port: 9090)
+                let port = try await proxyServer.start(port: ProxyConstants.port)
                 guard isCurrentCaptureOperation(operationID) else { return }
 
-                state.proxyPort = port
                 state.isCaptureRunning = true
                 state.isCaptureStarting = false
-                state.captureStatus = "Listening on 127.0.0.1:\(port)"
+                state.captureStatus = "Listening on \(ProxyConstants.host):\(port)"
                 state.proxyRoutingStatus = "Enabling system proxy"
 
-                let services = try await systemProxySettingsManager.enableProxy(host: "127.0.0.1", port: port)
+                let services = try await systemProxySettingsManager.enableProxy(host: ProxyConstants.host, port: port)
                 guard isCurrentCaptureOperation(operationID) else { return }
 
-                state.captureStatus = "Listening on 127.0.0.1:\(port)"
+                state.captureStatus = "Listening on \(ProxyConstants.host):\(port)"
                 state.proxyRoutingStatus = "Routing enabled: \(services.joined(separator: ", "))"
             } catch {
                 guard isCurrentCaptureOperation(operationID) else { return }
@@ -406,7 +408,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         }
     }
 
-    private func refreshCertificateTrustState() {
+    func refreshCertificateTrustState() {
         Task { [weak self] in
             guard let self else { return }
             try? await refreshCertificateTrustState()
@@ -497,8 +499,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         alert.messageText = "Trust Siminator Root Certificate?"
         alert.informativeText = """
         Siminator needs a local root certificate to decrypt and display HTTPS traffic. The certificate and private key are generated on this Mac. The private key is imported into your login keychain and removed from file storage.
-
-        macOS will add this certificate as trusted for your login keychain. Only continue if you want Siminator to inspect HTTPS traffic from this Mac.
+        macOS will add this certificate as trusted for your login keychain. 
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Trust and Install")

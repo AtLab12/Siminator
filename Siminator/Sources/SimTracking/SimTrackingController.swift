@@ -18,16 +18,8 @@ final class SimTrackingController {
 
     init() {
         panel = SiminatorPanel(
-            contentRect: NSRect(
-                x: 100,
-                y: 100,
-                width: Layout.size.width,
-                height: Layout.size.height
-            ),
-            styleMask: [
-                .borderless,
-                .nonactivatingPanel
-            ],
+            contentRect: NSRect(x: 100, y: 100, width: Layout.size.width, height: Layout.size.height),
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -119,8 +111,8 @@ final class SimTrackingController {
     private func startMovementTimer() {
         guard movementTimer == nil else { return }
 
-        // Track at 120Hz for smooth visual
-        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+        // Track at 30Hz
+        let timer = Timer(timeInterval: 1.0 / SiminatorConst.refreshRate, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.moveTowardTargetFrame()
             }

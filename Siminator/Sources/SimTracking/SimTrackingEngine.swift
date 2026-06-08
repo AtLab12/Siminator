@@ -5,6 +5,11 @@ struct SimulatorWindowSnapshot: Sendable {
     let windowNumber: Int
 }
 
+enum SiminatorConst {
+    // Pooling refresh rate. 30Hz seems like the sweetspot
+    static let refreshRate = 30.0    
+}
+
 @MainActor
 final class SimTrackingEngine {
     var onSimulatorFrameChanged: (@MainActor (SimulatorWindowSnapshot?) -> Void)?
@@ -66,10 +71,7 @@ final class SimTrackingEngine {
     }
 
     private func findSimulatorApplication() -> NSRunningApplication? {
-        NSWorkspace.shared.runningApplications.first {
-            $0.bundleIdentifier == "com.apple.iphonesimulator"
-            || $0.localizedName == "Simulator"
-        }
+        NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == "com.apple.iphonesimulator" || $0.localizedName == "Simulator" }
     }
 
     private func updateSimulatorFrame() {
@@ -112,13 +114,12 @@ final class SimTrackingEngine {
     private func startPolling() {
         guard pollingTimer == nil else { return }
 
-        let timer = Timer(timeInterval: 1.0 / 120.0, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1.0 / SiminatorConst.refreshRate, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.updateSimulatorFrame()
             }
         }
 
-        timer.tolerance = 0
         RunLoop.main.add(timer, forMode: .common)
         pollingTimer = timer
     }

@@ -2,36 +2,48 @@ import Foundation
 import NIOCore
 import NIOPosix
 
+nonisolated enum ProxyConstants {
+    static let host = "127.0.0.1"
+    static let port = 9090
+}
+
 actor LocalHTTPProxyServer {
-    private let host = "127.0.0.1"
+    typealias RequestEventSink = @MainActor @Sendable (CapturedNetworkRequestEvent) -> Void
+
+    private let requestEventSink: RequestEventSink?
     private var channel: Channel?
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
+
+    init(requestEventSink: RequestEventSink? = nil) {
+        self.requestEventSink = requestEventSink
+    }
 
     var isRunning: Bool {
         channel != nil
     }
 
-    func start(port: Int = 9090) async throws -> Int {
+    func start(port: Int = ProxyConstants.port) async throws -> Int {
         if channel != nil {
             return port
         }
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        let requestEventSink = requestEventSink
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 256)
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
-                channel.pipeline.addHandler(HTTPProxyForwardingHandler())
+                channel.pipeline.addHandler(HTTPProxyForwardingHandler(requestEventSink: requestEventSink))
             }
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelOption(ChannelOptions.maxMessagesPerRead, value: 16)
             .childChannelOption(ChannelOptions.recvAllocator, value: AdaptiveRecvByteBufferAllocator())
 
         do {
-            let channel = try await bootstrap.bind(host: host, port: port).get()
+            let channel = try await bootstrap.bind(host: ProxyConstants.host, port: port).get()
             self.channel = channel
             eventLoopGroup = group
-            print("Siminator proxy listening on \(channel.localAddress?.description ?? "\(host):\(port)")")
+            print("Siminator proxy listening on \(channel.localAddress?.description ?? "\(ProxyConstants.host):\(port)")")
             return port
         } catch {
             try await shutdown(group)
@@ -84,6 +96,12 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
     private var state = State.waitingForRequest
     private var pendingInitialBuffer: ByteBuffer?
     private var upstreamChannel: Channel?
+    private var currentRequestID: CapturedNetworkRequest.ID?
+    private let requestEventSink: LocalHTTPProxyServer.RequestEventSink?
+
+    init(requestEventSink: LocalHTTPProxyServer.RequestEventSink? = nil) {
+        self.requestEventSink = requestEventSink
+    }
 
     func channelActive(context: ChannelHandlerContext) {
         print("Siminator proxy accepted connection from \(context.remoteAddress?.description ?? "unknown remote")")
@@ -123,6 +141,13 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
 
     func errorCaught(context: ChannelHandlerContext, error: Swift.Error) {
         print("Siminator proxy connection error: \(error)")
+        if let currentRequestID {
+            emit(.statusChanged(
+                id: currentRequestID,
+                status: .failed,
+                completedAt: Date()
+            ))
+        }
         closeBoth(context: context)
     }
 
@@ -153,6 +178,20 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
                 upstreamChannel.pipeline.addHandler(UpstreamToClientForwardingHandler(clientChannel: context.channel))
             }
 
+        let requestID = UUID()
+        currentRequestID = requestID
+        emit(.started(CapturedNetworkRequest(
+            id: requestID,
+            createdAt: Date(),
+            completedAt: nil,
+            method: request.method,
+            host: request.host,
+            port: request.port,
+            path: request.displayPath,
+            status: .inProgress,
+            process: .unknown
+        )))
+
         bootstrap.connect(host: request.host, port: request.port).whenComplete { [weak self] result in
             guard let self else {
                 return
@@ -162,37 +201,55 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
             case let .success(upstreamChannel):
                 self.upstreamChannel = upstreamChannel
                 self.state = .forwarding
+                self.emit(.statusChanged(
+                    id: requestID,
+                    status: .succeeded,
+                    completedAt: Date()
+                ))
 
                 if request.isConnect {
                     print("Siminator proxy CONNECT \(request.host):\(request.port)")
-                    var response = context.channel.allocator.buffer(
+                    let response = context.channel.allocator.buffer(
                         string: "HTTP/1.1 200 Connection Established\r\n\r\n"
                     )
                     context.writeAndFlush(self.wrapOutboundOut(response), promise: nil)
 
-                    var tunneledBytes = request.tunneledBodyBuffer(allocator: context.channel.allocator)
+                    let tunneledBytes = request.tunneledBodyBuffer(allocator: context.channel.allocator)
                     if tunneledBytes.readableBytes > 0 {
                         upstreamChannel.writeAndFlush(tunneledBytes, promise: nil)
                     }
                 } else {
                     print("Siminator proxy HTTP \(request.method) \(request.host):\(request.port) \(request.displayPath)")
-                    var forwardedRequest = request.forwardedBuffer(allocator: context.channel.allocator)
+                    let forwardedRequest = request.forwardedBuffer(allocator: context.channel.allocator)
                     upstreamChannel.writeAndFlush(forwardedRequest, promise: nil)
                 }
 
             case let .failure(error):
                 print("Siminator proxy failed to connect to \(request.host):\(request.port): \(error)")
+                self.emit(.statusChanged(
+                    id: requestID,
+                    status: .failed,
+                    completedAt: Date()
+                ))
                 self.writeBadGatewayAndClose(context: context)
             }
         }
     }
 
     private func writeBadGatewayAndClose(context: ChannelHandlerContext) {
-        var response = context.channel.allocator.buffer(
+        let response = context.channel.allocator.buffer(
             string: "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n"
         )
         context.writeAndFlush(wrapOutboundOut(response)).whenComplete { _ in
             self.closeBoth(context: context)
+        }
+    }
+
+    private func emit(_ event: CapturedNetworkRequestEvent) {
+        guard let requestEventSink else { return }
+
+        Task { @MainActor in
+            requestEventSink(event)
         }
     }
 

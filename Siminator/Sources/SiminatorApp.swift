@@ -7,10 +7,19 @@ struct SiminatorApp: App {
 
     var body: some Scene {
         MenuBarExtra("Siminator", systemImage: "star") {
-            Button("Quit Siminator") {
+            Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
-            .keyboardShortcut("q")
+            
+            Button {
+                appDelegate.refreshCertificate()
+            } label: {
+                Label {
+                    Text("Refresh Certificate")
+                } icon: {
+                    Image(systemName: "arrow.trianglehead.counterclockwise")
+                }
+            }
         }
 
         Settings {
@@ -82,8 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func activateSimulatorIfRunning() {
         guard let simulator = NSWorkspace.shared.runningApplications.first(where: {
-            $0.bundleIdentifier == "com.apple.iphonesimulator"
-                || $0.localizedName == "Simulator"
+            $0.bundleIdentifier == "com.apple.iphonesimulator" || $0.localizedName == "Simulator"
         }) else {
             return
         }
@@ -94,5 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func bringSiminatorPanelsToFront() {
         panelController.bringToFrontWithSimulator()
         networkingSidebarController.bringToFrontWithSimulator()
+    }
+    
+    func refreshCertificate() {
+        self.networkingSidebarController.refreshCertificateTrustState()
     }
 }
