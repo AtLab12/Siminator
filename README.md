@@ -1,5 +1,6 @@
 <p align="center">
   <img src="./SiminatorIcon.png" alt="Siminator" width="96" />
+  <a href="https://www.linkedin.com/in/miko%C5%82aj-zawada/"> by Mikoła Zawada</a>
 </p>
 
 <h1 align="center">Siminator</h1>
