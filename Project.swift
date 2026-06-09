@@ -8,6 +8,10 @@ let swiftSettings: SettingsDictionary = [
     "SWIFT_UPCOMING_FEATURE_NONISOLATEDNONSENDINGBYDEFAULT": "YES",
 ]
 
+let appSettings = swiftSettings.merging([
+    "SWIFT_OBJC_BRIDGING_HEADER": "Siminator/Sources/Networking/Core/Proxy/ProcessAttribution/ProcShim.h",
+]) { _, new in new }
+
 let project = Project(
     name: "Siminator",
     settings: .settings(base: swiftSettings),
@@ -31,7 +35,8 @@ let project = Project(
                 .external(name: "NIOHTTP1"),
                 .external(name: "NIOHTTP2"),
                 .external(name: "NIOPosix"),
-            ]
+            ],
+            settings: .settings(base: appSettings)
         ),
         .target(
             name: "SiminatorProxyHelper",

@@ -13,9 +13,11 @@ actor LocalHTTPProxyServer {
     private let requestEventSink: RequestEventSink?
     private var channel: Channel?
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
+    private let processResolver: ProcessResolver
 
     init(requestEventSink: RequestEventSink? = nil) {
         self.requestEventSink = requestEventSink
+        self.processResolver = .init()
     }
 
     var isRunning: Bool {
@@ -33,7 +35,10 @@ actor LocalHTTPProxyServer {
             .serverChannelOption(ChannelOptions.backlog, value: 256)
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
-                channel.pipeline.addHandler(HTTPProxyForwardingHandler(requestEventSink: requestEventSink))
+                channel.pipeline.addHandlers([
+                    HTTPProxyForwardingHandler(requestEventSink: requestEventSink),
+                    AttributionHandler(resolver: self.processResolver)
+                ])
             }
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelOption(ChannelOptions.maxMessagesPerRead, value: 16)
