@@ -86,12 +86,27 @@ actor ProcessResolver {
 
                 // NSRunningApplication is nil for non-app processes
                 let app = NSRunningApplication(processIdentifier: pid)
+                let bundleID = app?.bundleIdentifier ?? Self.bundleIdentifier(forExecutablePath: path)
+                
                 return ResolvedApp(
                     pid: pid,
                     path: path,
                     runningApp: app,
-                    bundleID: app?.bundleIdentifier
+                    bundleID: bundleID
                 )
+            }
+        }
+        return nil
+    }
+    
+    private static func bundleIdentifier(forExecutablePath path: String) -> String? {
+        guard !path.isEmpty else { return nil }
+
+        var url = URL(fileURLWithPath: path)
+        while url.pathComponents.count > 1 {
+            url.deleteLastPathComponent()
+            if url.pathExtension == "app" {
+                return Bundle(url: url)?.bundleIdentifier
             }
         }
         return nil
