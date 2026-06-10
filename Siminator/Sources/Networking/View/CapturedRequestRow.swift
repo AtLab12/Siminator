@@ -61,34 +61,28 @@ struct CapturedRequestRow: View {
 }
 
 private struct RequestProcessIcon: View {
+    private struct Style {
+        static let cornerRadius: CGFloat = 6
+        static let fallbackSymbolSize: CGFloat = 18
+        static let fallbackSide: CGFloat = 28
+    }
+
+    @Environment(AppIconCache.self) private var iconCache
+
     let process: CapturedRequestProcess
 
     var body: some View {
-        if let image = appIcon {
-            Image(nsImage: image)
+        if let icon = iconCache.icon(for: process.bundleIdentifier) {
+            icon
                 .resizable()
                 .scaledToFit()
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: Style.cornerRadius))
         } else {
             Image(systemName: "terminal")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: Style.fallbackSymbolSize, weight: .medium))
                 .foregroundStyle(.secondary)
-                .frame(width: 28, height: 28)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .frame(width: Style.fallbackSide, height: Style.fallbackSide)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: Style.cornerRadius))
         }
-    }
-
-    private var appIcon: NSImage? {
-        if let bundleIdentifier = process.bundleIdentifier,
-           let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
-            return NSWorkspace.shared.icon(forFile: appURL.path)
-        }
-
-        if let executablePath = process.executablePath,
-           FileManager.default.fileExists(atPath: executablePath) {
-            return NSWorkspace.shared.icon(forFile: executablePath)
-        }
-
-        return nil
     }
 }

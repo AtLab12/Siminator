@@ -45,6 +45,7 @@ struct CapturedNetworkRequest: Identifiable, Codable, Hashable, Sendable {
 enum CapturedNetworkRequestEvent: Sendable {
     case started(CapturedNetworkRequest)
     case statusChanged(id: CapturedNetworkRequest.ID, status: CapturedRequestStatus, completedAt: Date?)
+    case processResolved(id: CapturedNetworkRequest.ID, process: CapturedRequestProcess)
 }
 
 struct NetworkingCaptureSession: Identifiable, Codable, Hashable, Sendable {

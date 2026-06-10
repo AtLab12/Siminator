@@ -17,6 +17,7 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
     private var pendingInitialBuffer: ByteBuffer?
     private var upstreamChannel: Channel?
     private var currentRequestID: CapturedNetworkRequest.ID?
+    private var resolvedProcess: CapturedRequestProcess?
     private let requestEventSink: LocalHTTPProxyServer.RequestEventSink?
 
     init(requestEventSink: LocalHTTPProxyServer.RequestEventSink? = nil) {
@@ -49,6 +50,19 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
 
         case .closed:
             break
+        }
+    }
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        guard let resolvedEvent = event as? ResolvedProcessEvent else {
+            context.fireUserInboundEventTriggered(event)
+            return
+        }
+
+        resolvedProcess = resolvedEvent.process
+
+        if let currentRequestID {
+            emit(.processResolved(id: currentRequestID, process: resolvedEvent.process))
         }
     }
 
@@ -109,7 +123,7 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
             port: request.port,
             path: request.displayPath,
             status: .inProgress,
-            process: .unknown
+            process: resolvedProcess ?? .unknown
         )))
 
         bootstrap.connect(host: request.host, port: request.port).whenComplete { [weak self] result in

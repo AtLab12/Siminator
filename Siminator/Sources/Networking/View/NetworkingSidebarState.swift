@@ -49,6 +49,13 @@ final class NetworkingSidebarState {
 
             visibleRequests[index].status = status
             visibleRequests[index].completedAt = completedAt
+
+        case let .processResolved(id, process):
+            guard let index = requestIndexes[id], visibleRequests.indices.contains(index) else {
+                return
+            }
+
+            visibleRequests[index].process = process
         }
     }
 

@@ -14,8 +14,10 @@ actor LocalHTTPProxyServer {
     private var channel: Channel?
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
     private let processResolver: ProcessResolver
+    private let appIconStore: AppIconStore
 
-    init(requestEventSink: RequestEventSink? = nil) {
+    init(appIconStore: AppIconStore, requestEventSink: RequestEventSink? = nil) {
+        self.appIconStore = appIconStore
         self.requestEventSink = requestEventSink
         self.processResolver = .init()
     }
@@ -37,7 +39,7 @@ actor LocalHTTPProxyServer {
             .childChannelInitializer { channel in
                 channel.pipeline.addHandlers([
                     HTTPProxyForwardingHandler(requestEventSink: requestEventSink),
-                    AttributionHandler(resolver: self.processResolver)
+                    AttributionHandler(resolver: self.processResolver, iconStore: self.appIconStore)
                 ])
             }
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)

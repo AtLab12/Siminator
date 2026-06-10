@@ -18,7 +18,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var isEnabled = false
     private var detachedFrame: CGRect?
     private var shouldOrderOutAfterAnimation = false
-    private lazy var proxyServer = LocalHTTPProxyServer { [weak self] event in
+    private let appIconCache = AppIconCache()
+    private lazy var appIconStore = AppIconStore(cache: appIconCache)
+    private lazy var proxyServer = LocalHTTPProxyServer(appIconStore: appIconStore) { [weak self] event in
         self?.state.handleRequestEvent(event)
     }
     private let certificateTrustManager = CertificateTrustManager()
@@ -68,6 +70,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                     self?.requestCertificateInstall()
                 }
             )
+            .environment(appIconCache)
         )
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor

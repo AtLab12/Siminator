@@ -5,7 +5,7 @@
 <h1 align="center">Siminator <span style="font-size:16px; font-weight:normal;"><a href="https://www.linkedin.com/in/miko%C5%82aj-zawada/" style="font-size:inherit; font-weight:inherit; text-decoration:none; color:inherit;">by Mikołaj Zawada</a></span></h1>
 
 <p align="center">
-  <strong>A macOS companion for iOS engineers — built around the Simulator.</strong>
+  <strong>A macOS companion for iOS engineers built around the Simulator.</strong>
 </p>
 
 <p align="center">

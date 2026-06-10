@@ -1,3 +1,4 @@
+import Foundation
 import NIOCore
 import NIOPosix
 
@@ -8,14 +9,22 @@ nonisolated struct SocketTuple: Hashable, Sendable {
     let remotePort: UInt16
 }
 
+/// Fired through the channel pipeline once the owning process of a
+/// connection has been resolved, so the forwarding handler can attach
+/// it to the captured request.
+nonisolated struct ResolvedProcessEvent: Sendable {
+    let process: CapturedRequestProcess
+}
+
 nonisolated final class AttributionHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
 
     private let resolver: ProcessResolver
-//    private let iconStore: IconStore
+    private let iconStore: AppIconStore
 
-    init(resolver: ProcessResolver) {
+    init(resolver: ProcessResolver, iconStore: AppIconStore) {
         self.resolver = resolver
+        self.iconStore = iconStore
     }
 
     func channelActive(context: ChannelHandlerContext) {
@@ -28,14 +37,46 @@ nonisolated final class AttributionHandler: ChannelInboundHandler, @unchecked Se
             return
         }
 
+        let channel = context.channel
+        let resolver = resolver
+        let iconStore = iconStore
+
         Task {
-            if let app = try? await resolver.resolve(tuple: tuple) {
-                print("resolved app to \(app.bundleID ?? "unknown bundle")")
-//                await iconStore.remember(app: app, tuple: tuple)
+            guard let app = try? await resolver.resolve(tuple: tuple) else {
+                return
+            }
+
+            let process = CapturedRequestProcess(
+                displayName: Self.displayName(for: app),
+                bundleIdentifier: app.bundleID,
+                executablePath: app.path.isEmpty ? nil : app.path
+            )
+
+            // Pipeline operations are thread-safe; this hops to the event
+            // loop and reaches HTTPProxyForwardingHandler from the head.
+            channel.pipeline.fireUserInboundEventTriggered(ResolvedProcessEvent(process: process))
+
+            if app.bundleID != nil {
+                await iconStore.ensureIcon(for: app)
             }
         }
 
         context.fireChannelActive()
+    }
+
+    private static func displayName(for app: ResolvedApp) -> String {
+        if let name = app.runningApp?.localizedName, !name.isEmpty {
+            return name
+        }
+
+        if !app.path.isEmpty {
+            let executable = URL(fileURLWithPath: app.path).lastPathComponent
+            if !executable.isEmpty {
+                return executable
+            }
+        }
+
+        return app.bundleID ?? CapturedRequestProcess.unknown.displayName
     }
 }
 
