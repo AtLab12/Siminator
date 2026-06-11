@@ -11,6 +11,15 @@ import AppKit
 final class SiminatorPanel: NSPanel {
     var onUserInteraction: (@MainActor () -> Void)?
 
+    // Overriden to enable textfield interaction. Both becomeKey and becomeMain
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        true
+    }
+
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown
             || event.type == .rightMouseDown

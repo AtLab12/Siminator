@@ -3,7 +3,6 @@ import SwiftUI
 
 struct NetworkingSidebarView: View {
     @Bindable var viewModel: NetworkingSidebarVM
-    @State private var isSessionBrowserPresented = false
 
     let onDetachedChanged: @MainActor (Bool) -> Void
     let onCaptureToggled: @MainActor () -> Void
@@ -148,65 +147,7 @@ struct NetworkingSidebarView: View {
     }
 
     private var sessionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Text("Live session:")
-                    .font(.headline)
-                    .lineLimit(1)
-
-                TextField("Session title", text: $viewModel.activeSession.title)
-                    .textFieldStyle(.plain)
-                    .font(.headline)
-                    .lineLimit(1)
-
-                Spacer(minLength: 8)
-
-                IconMaterialButton(
-                    systemImage: "list.bullet",
-                    accessibilityLabel: "Past sessions",
-                    action: {
-                        isSessionBrowserPresented.toggle()
-                    }
-                )
-                .popover(isPresented: $isSessionBrowserPresented, arrowEdge: .bottom) {
-                    Text("Past sessions")
-                        .font(.headline)
-                        .padding(16)
-                        .frame(width: 220, alignment: .leading)
-                }
-            }
-            .padding(.horizontal, 16)
-
-            if viewModel.totalRequestCount > viewModel.visibleRequests.count {
-                Text("Showing latest \(viewModel.visibleRequests.count.formatted()) of \(viewModel.totalRequestCount.formatted())")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if viewModel.visibleRequests.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "network")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-
-                    Text("No requests captured")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack {
-                        ForEach(viewModel.visibleRequests.reversed()) { request in
-                            CapturedRequestRow(request: request)
-                        }
-                    }
-                    .padding(.vertical)
-                    .padding(.bottom)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        SessionLogView(viewModel: viewModel.sessionViewModel)
     }
 
     private var isCaptureTransitioning: Bool {
@@ -234,7 +175,7 @@ struct NetworkingSidebarView: View {
     }
 }
 
-private struct IconMaterialButton: View {
+struct IconMaterialButton: View {
     let systemImage: String
     let accessibilityLabel: String
     let action: () -> Void

@@ -7,14 +7,12 @@
 
 import Foundation
 
+
+///Closely works with NetworkingSidebarController
+///Exists as a bridge between underlying proxy logic and view state
 @MainActor
 @Observable
 final class NetworkingSidebarVM {
-    private enum RequestBuffer {
-        static let visibleLimit = 10_000
-        static let trimBatchSize = 500
-    }
-
     var isDetached = false
     var isCaptureStarting = false
     var isCaptureStopping = false
@@ -24,69 +22,44 @@ final class NetworkingSidebarVM {
     var isCertificateInstalling = false
     var isCertificateTrusted = false
     var certificateStatus = "Certificate not trusted"
-    var activeSession = NetworkingCaptureSession()
-    var visibleRequests: [CapturedNetworkRequest] = []
-    var totalRequestCount = 0
+    let sessionViewModel: SessionLogVM
     
     var clearSessionButtonVisible: Bool {
-        !visibleRequests.isEmpty
+        !sessionViewModel.visibleRequests.isEmpty
     }
-
-    @ObservationIgnored private var requestIndexes: [CapturedNetworkRequest.ID: Int] = [:]
-
-    func beginNewSession() {
-        activeSession = NetworkingCaptureSession()
-        visibleRequests.removeAll(keepingCapacity: true)
-        requestIndexes.removeAll(keepingCapacity: true)
-        totalRequestCount = 0
+    
+    init(
+        isDetached: Bool = false,
+        isCaptureStarting: Bool = false,
+        isCaptureStopping: Bool = false,
+        isCaptureRunning: Bool = false,
+        captureStatus: String = "Proxy stopped",
+        proxyRoutingStatus: String = "System proxy disabled",
+        isCertificateInstalling: Bool = false,
+        isCertificateTrusted: Bool = false,
+        certificateStatus: String = "Certificate not trusted"
+    ) {
+        self.isDetached = isDetached
+        self.isCaptureStarting = isCaptureStarting
+        self.isCaptureStopping = isCaptureStopping
+        self.isCaptureRunning = isCaptureRunning
+        self.captureStatus = captureStatus
+        self.proxyRoutingStatus = proxyRoutingStatus
+        self.isCertificateInstalling = isCertificateInstalling
+        self.isCertificateTrusted = isCertificateTrusted
+        self.certificateStatus = certificateStatus
+        self.sessionViewModel = .init()
     }
-
+    
     func handleRequestEvent(_ event: CapturedNetworkRequestEvent) {
-        switch event {
-        case let .started(request):
-            append(request)
-
-        case let .statusChanged(id, status, completedAt):
-            guard let index = requestIndexes[id], visibleRequests.indices.contains(index) else {
-                return
-            }
-
-            visibleRequests[index].status = status
-            visibleRequests[index].completedAt = completedAt
-
-        case let .processResolved(id, process):
-            guard let index = requestIndexes[id], visibleRequests.indices.contains(index) else {
-                return
-            }
-
-            visibleRequests[index].process = process
-        }
-    }
-
-    private func append(_ request: CapturedNetworkRequest) {
-        totalRequestCount += 1
-        visibleRequests.append(request)
-        requestIndexes[request.id] = visibleRequests.count - 1
-
-        guard visibleRequests.count > RequestBuffer.visibleLimit + RequestBuffer.trimBatchSize else {
-            return
-        }
-
-        visibleRequests.removeFirst(RequestBuffer.trimBatchSize)
-        rebuildRequestIndexes()
-    }
-
-    private func rebuildRequestIndexes() {
-        requestIndexes.removeAll(keepingCapacity: true)
-
-        for (index, request) in visibleRequests.enumerated() {
-            requestIndexes[request.id] = index
-        }
+        sessionViewModel.handleRequestEvent(event)
     }
     
     func clearSession() {
-        visibleRequests.removeAll(keepingCapacity: true)
-        requestIndexes.removeAll(keepingCapacity: true)
-        totalRequestCount = 0
+        sessionViewModel.clearSession()
+    }
+    
+    func beginNewSession() {
+        sessionViewModel.beginNewSession()
     }
 }
