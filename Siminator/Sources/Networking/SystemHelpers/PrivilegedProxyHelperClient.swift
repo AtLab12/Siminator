@@ -72,9 +72,16 @@ struct PrivilegedProxyHelperInstaller: Sendable {
     )
 
     nonisolated func installIfNeeded() throws {
-        if FileManager.default.fileExists(atPath: helperDestinationURL.path),
-           FileManager.default.fileExists(atPath: launchDaemonURL.path) {
-            return
+        let isInstalled = FileManager.default.fileExists(atPath: helperDestinationURL.path)
+            && FileManager.default.fileExists(atPath: launchDaemonURL.path)
+
+        if isInstalled {
+            // Reinstall when the bundled helper changed, so fixes ship to existing installs.
+            guard let bundledHelperURL,
+                  !FileManager.default.contentsEqual(atPath: bundledHelperURL.path, andPath: helperDestinationURL.path)
+            else {
+                return
+            }
         }
 
         guard let bundledHelperURL else {

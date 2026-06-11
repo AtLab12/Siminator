@@ -57,12 +57,23 @@ nonisolated final class ProxyConfigurator {
             throw ProxyHelperError.noNetworkServices
         }
 
-        previousStates = try services.map { service in
-            ServiceProxyState(
-                service: service,
-                webProxy: try readProxyState(service: service, kind: .web),
-                secureWebProxy: try readProxyState(service: service, kind: .secureWeb)
-            )
+        // Keep the oldest snapshot if enable is called twice without a restore in between.
+        if previousStates.isEmpty {
+            previousStates = try services.map { service in
+                ServiceProxyState(
+                    service: service,
+                    webProxy: sanitizedPreviousState(
+                        try readProxyState(service: service, kind: .web),
+                        host: host,
+                        port: port
+                    ),
+                    secureWebProxy: sanitizedPreviousState(
+                        try readProxyState(service: service, kind: .secureWeb),
+                        host: host,
+                        port: port
+                    )
+                )
+            }
         }
 
         for service in services {
@@ -76,14 +87,55 @@ nonisolated final class ProxyConfigurator {
     }
 
     func restoreProxySettings() throws {
-        guard !previousStates.isEmpty else { return }
+        // Force the proxy off everywhere instead of silently succeeding.
+        guard !previousStates.isEmpty else {
+            try disableProxyOnAllServices()
+            return
+        }
+
+        var firstError: Error?
 
         for state in previousStates {
-            try restoreProxy(service: state.service, option: .web, state: state.webProxy)
-            try restoreProxy(service: state.service, option: .secureWeb, state: state.secureWebProxy)
+            do {
+                try restoreProxy(service: state.service, option: .web, state: state.webProxy)
+                try restoreProxy(service: state.service, option: .secureWeb, state: state.secureWebProxy)
+            } catch {
+                firstError = firstError ?? error
+            }
         }
 
         previousStates = []
+
+        if let firstError {
+            throw firstError
+        }
+    }
+
+    private func disableProxyOnAllServices() throws {
+        let services = try enabledNetworkServices()
+        var firstError: Error?
+
+        for service in services {
+            do {
+                _ = try runNetworkSetup([ProxyKind.web.stateCommand, service, "off"])
+                _ = try runNetworkSetup([ProxyKind.secureWeb.stateCommand, service, "off"])
+            } catch {
+                firstError = firstError ?? error
+            }
+        }
+
+        if let firstError {
+            throw firstError
+        }
+    }
+
+    private func sanitizedPreviousState(_ state: ProxyState, host: String, port: Int) -> ProxyState {
+        // A stale Siminator proxy left over from a crashed session must never be treated as the user's original configuration.
+        guard state.server == host, state.port == "\(port)" else {
+            return state
+        }
+
+        return ProxyState(isEnabled: false, server: "", port: "0")
     }
 
     private func enabledNetworkServices() throws -> [String] {

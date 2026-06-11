@@ -63,6 +63,6 @@ struct NetworkingCaptureSession: Identifiable, Codable, Hashable, Sendable {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "d-M-y-HH:mm:ss"
-        return "\(formatter.string(from: date))-Siminatorsession"
+        return "\(formatter.string(from: date))-Simsession"
     }
 }

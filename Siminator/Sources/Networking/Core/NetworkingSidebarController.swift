@@ -437,13 +437,18 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         guard !state.isCaptureStopping else { return }
 
         captureOperationID += 1
-        proxyControlTask?.cancel()
+        let inFlightStartTask = proxyControlTask
+        inFlightStartTask?.cancel()
         state.isCaptureStopping = true
         state.isCaptureStarting = false
         state.captureStatus = "Stopping proxy"
 
         proxyControlTask = Task { [weak self] in
             guard let self else { return }
+
+            // An in-flight enableProxy XPC call is not interrupted by cancellation;
+            // wait for it so restore runs after the proxy was actually enabled.
+            await inFlightStartTask?.value
 
             do {
                 try await systemProxySettingsManager.restoreProxySettings()
