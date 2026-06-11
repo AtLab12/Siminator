@@ -10,7 +10,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     private let panel: SiminatorPanel
-    private let state = NetworkingSidebarState()
+    private let state = NetworkingSidebarVM()
     private var simulatorFrame: CGRect?
     private var simulatorWindowNumber: Int?
     private var targetFrame: CGRect?
@@ -59,7 +59,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         let hostingView = NSHostingView(
             rootView: NetworkingSidebarView(
-                state: state,
+                viewModel: state,
                 onDetachedChanged: { [weak self] isDetached in
                     self?.setDetached(isDetached)
                 },
@@ -77,7 +77,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         panel.contentView = hostingView
         panel.onUserInteraction = { [weak self] in
-            self?.onPanelInteraction?()
+            if !(self?.state.isDetached ?? true) {
+                self?.onPanelInteraction?()
+            }
         }
         configureDockedPanel()
         refreshCertificateTrustState()

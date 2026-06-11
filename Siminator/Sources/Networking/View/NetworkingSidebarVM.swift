@@ -9,9 +9,9 @@ import Foundation
 
 @MainActor
 @Observable
-final class NetworkingSidebarState {
+final class NetworkingSidebarVM {
     private enum RequestBuffer {
-        static let visibleLimit = 1_000
+        static let visibleLimit = 10_000
         static let trimBatchSize = 500
     }
 
@@ -27,6 +27,10 @@ final class NetworkingSidebarState {
     var activeSession = NetworkingCaptureSession()
     var visibleRequests: [CapturedNetworkRequest] = []
     var totalRequestCount = 0
+    
+    var clearSessionButtonVisible: Bool {
+        !visibleRequests.isEmpty
+    }
 
     @ObservationIgnored private var requestIndexes: [CapturedNetworkRequest.ID: Int] = [:]
 
@@ -78,5 +82,11 @@ final class NetworkingSidebarState {
         for (index, request) in visibleRequests.enumerated() {
             requestIndexes[request.id] = index
         }
+    }
+    
+    func clearSession() {
+        visibleRequests.removeAll(keepingCapacity: true)
+        requestIndexes.removeAll(keepingCapacity: true)
+        totalRequestCount = 0
     }
 }

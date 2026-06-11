@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct NetworkingSidebarView: View {
-    @Bindable var state: NetworkingSidebarState
+    @Bindable var viewModel: NetworkingSidebarVM
     @State private var isSessionBrowserPresented = false
 
     let onDetachedChanged: @MainActor (Bool) -> Void
@@ -26,16 +26,16 @@ struct NetworkingSidebarView: View {
         .padding(.top, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(background)
-        .clipShape(RoundedRectangle(cornerRadius: state.isDetached ? 0 : 18))
+        .clipShape(RoundedRectangle(cornerRadius: viewModel.isDetached ? 0 : 18))
     }
 
     private var header: some View {
         HStack(spacing: 10) {
             IconMaterialButton(
-                systemImage: state.isDetached ? "pin.fill" : "macwindow",
-                accessibilityLabel: state.isDetached ? "Dock to simulator" : "Detach window",
+                systemImage: viewModel.isDetached ? "pin.fill" : "macwindow",
+                accessibilityLabel: viewModel.isDetached ? "Dock to simulator" : "Detach window",
                 action: {
-                    onDetachedChanged(!state.isDetached)
+                    onDetachedChanged(!viewModel.isDetached)
                 }
             )
 
@@ -45,7 +45,7 @@ struct NetworkingSidebarView: View {
 
             Spacer(minLength: 12)
 
-            if !state.isDetached {
+            if !viewModel.isDetached {
                 IconMaterialButton(
                     systemImage: "sidebar.right",
                     accessibilityLabel: "Show request details",
@@ -59,7 +59,7 @@ struct NetworkingSidebarView: View {
     
     @ViewBuilder
     var background: some View {
-        if state.isDetached {
+        if viewModel.isDetached {
             Rectangle()
                 .fill(.regularMaterial)
         } else {
@@ -70,8 +70,8 @@ struct NetworkingSidebarView: View {
     
     var certificateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if state.isCertificateTrusted {
-                Label(state.certificateStatus, systemImage: "checkmark.shield.fill")
+            if viewModel.isCertificateTrusted {
+                Label(viewModel.certificateStatus, systemImage: "checkmark.shield.fill")
                     .font(.callout)
                     .foregroundStyle(.green)
                     .lineLimit(2)
@@ -82,14 +82,14 @@ struct NetworkingSidebarView: View {
                     Label("Trust Certificate", systemImage: "shield")
                 }
                 .buttonStyle(.bordered)
-                .disabled(state.isCertificateInstalling)
+                .disabled(viewModel.isCertificateInstalling)
 
-                if state.isCertificateInstalling {
+                if viewModel.isCertificateInstalling {
                     ProgressView()
                         .controlSize(.small)
                 }
 
-                Text(state.certificateStatus)
+                Text(viewModel.certificateStatus)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -121,17 +121,26 @@ struct NetworkingSidebarView: View {
                 .disabled(isCaptureTransitioning)
                 .accessibilityLabel(captureButtonTitle)
 
-                Text(captureStatusTitle)
-                    .font(.caption)
-                    .foregroundStyle(captureStatusColor)
+                Spacer()
+                
+                if viewModel.clearSessionButtonVisible {
+                    Button {
+                        withAnimation {
+                            viewModel.clearSession()
+                        }
+                    } label: {
+                        Label("Clear session", systemImage: "trash")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
 
-            Text(state.captureStatus)
+            Text(viewModel.captureStatus)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
 
-            Text(state.proxyRoutingStatus)
+            Text(viewModel.proxyRoutingStatus)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
@@ -145,7 +154,7 @@ struct NetworkingSidebarView: View {
                     .font(.headline)
                     .lineLimit(1)
 
-                TextField("Session title", text: $state.activeSession.title)
+                TextField("Session title", text: $viewModel.activeSession.title)
                     .textFieldStyle(.plain)
                     .font(.headline)
                     .lineLimit(1)
@@ -168,13 +177,13 @@ struct NetworkingSidebarView: View {
             }
             .padding(.horizontal, 16)
 
-            if state.totalRequestCount > state.visibleRequests.count {
-                Text("Showing latest \(state.visibleRequests.count.formatted()) of \(state.totalRequestCount.formatted())")
+            if viewModel.totalRequestCount > viewModel.visibleRequests.count {
+                Text("Showing latest \(viewModel.visibleRequests.count.formatted()) of \(viewModel.totalRequestCount.formatted())")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            if state.visibleRequests.isEmpty {
+            if viewModel.visibleRequests.isEmpty {
                 VStack(spacing: 8) {
                     Image(systemName: "network")
                         .font(.title2)
@@ -188,7 +197,7 @@ struct NetworkingSidebarView: View {
             } else {
                 ScrollView {
                     LazyVStack {
-                        ForEach(state.visibleRequests.reversed()) { request in
+                        ForEach(viewModel.visibleRequests.reversed()) { request in
                             CapturedRequestRow(request: request)
                         }
                     }
@@ -201,39 +210,27 @@ struct NetworkingSidebarView: View {
     }
 
     private var isCaptureTransitioning: Bool {
-        state.isCaptureStarting || state.isCaptureStopping
+        viewModel.isCaptureStarting || viewModel.isCaptureStopping
     }
 
     private var captureButtonTitle: String {
-        if state.isCaptureStarting {
+        if viewModel.isCaptureStarting {
             return "Starting ..."
         }
 
-        if state.isCaptureStopping {
+        if viewModel.isCaptureStopping {
             return "Stopping ..."
         }
 
-        return state.isCaptureRunning ? "Stop" : "Start"
+        return viewModel.isCaptureRunning ? "Stop" : "Start"
     }
 
     private var captureButtonSystemImage: String {
-        state.isCaptureRunning ? "stop.fill" : "record.circle"
-    }
-
-    private var captureStatusTitle: String {
-        if state.isCaptureStarting {
-            return "Starting ..."
-        }
-
-        if state.isCaptureStopping {
-            return "Stopping ..."
-        }
-
-        return state.isCaptureRunning ? "Running" : "Stopped"
+        viewModel.isCaptureRunning ? "stop.fill" : "record.circle"
     }
 
     private var captureStatusColor: Color {
-        state.isCaptureRunning || state.isCaptureStarting || state.isCaptureStopping ? .green : .secondary
+        viewModel.isCaptureRunning || viewModel.isCaptureStarting || viewModel.isCaptureStopping ? .green : .secondary
     }
 }
 
