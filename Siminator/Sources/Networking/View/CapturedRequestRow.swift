@@ -60,7 +60,7 @@ struct CapturedRequestRow: View {
     }
 }
 
-private struct RequestProcessIcon: View {
+struct RequestProcessIcon: View {
     private struct Style {
         static let cornerRadius: CGFloat = 6
         static let fallbackSymbolSize: CGFloat = 18
