@@ -20,11 +20,14 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var shouldOrderOutAfterAnimation = false
     private let appIconCache = AppIconCache()
     private lazy var appIconStore = AppIconStore(cache: appIconCache)
-    private lazy var proxyServer = LocalHTTPProxyServer(appIconStore: appIconStore) { [weak self] event in
+    private let certificateMaterialManager = CertificateMaterialManager()
+    private lazy var proxyServer = LocalHTTPProxyServer(
+        appIconStore: appIconStore,
+        certificateMaterialManager: certificateMaterialManager
+    ) { [weak self] event in
         self?.state.handleRequestEvent(event)
     }
 
-    private let certificateMaterialManager = CertificateMaterialManager()
     private let systemProxySettingsManager = SystemProxySettingsManager()
     private var proxyControlTask: Task<Void, Never>?
     private var certificateGenerationTask: Task<Void, Never>?

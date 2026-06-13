@@ -23,6 +23,7 @@ struct CapturedNetworkRequest: Identifiable, Codable, Hashable, Sendable {
     let createdAt: Date
     var completedAt: Date?
     var method: String
+    var scheme: String
     var host: String
     var port: Int
     var path: String
@@ -38,7 +39,17 @@ struct CapturedNetworkRequest: Identifiable, Codable, Hashable, Sendable {
             return path
         }
 
-        return "http://\(host)\(path.hasPrefix("/") ? "" : "/")\(path)"
+        let portSuffix = shouldDisplayPort ? ":\(port)" : ""
+        return "\(scheme)://\(host)\(portSuffix)\(path.hasPrefix("/") ? "" : "/")\(path)"
+    }
+
+    private var shouldDisplayPort: Bool {
+        switch (scheme.lowercased(), port) {
+        case ("http", 80), ("https", 443):
+            return false
+        default:
+            return true
+        }
     }
 }
 
@@ -59,7 +70,7 @@ struct NetworkingCaptureSession: Identifiable, Codable, Hashable, Sendable {
         title = NetworkingCaptureSession.defaultTitle(for: createdAt)
     }
 
-    nonisolated private static func defaultTitle(for date: Date) -> String {
+    private nonisolated static func defaultTitle(for date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "d-M-y-HH:mm:ss"

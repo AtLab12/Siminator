@@ -1,6 +1,7 @@
 import Foundation
 import NIOCore
 import NIOPosix
+import NIOSSL
 
 nonisolated enum ProxyConstants {
     static let host = "127.0.0.1"
@@ -15,11 +16,17 @@ actor LocalHTTPProxyServer {
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
     private let processResolver: ProcessResolver
     private let appIconStore: AppIconStore
+    private let certificateMaterialManager: CertificateMaterialManager
 
-    init(appIconStore: AppIconStore, requestEventSink: RequestEventSink? = nil) {
+    init(
+        appIconStore: AppIconStore,
+        certificateMaterialManager: CertificateMaterialManager,
+        requestEventSink: RequestEventSink? = nil
+    ) {
         self.appIconStore = appIconStore
+        self.certificateMaterialManager = certificateMaterialManager
         self.requestEventSink = requestEventSink
-        self.processResolver = .init()
+        processResolver = .init()
     }
 
     var isRunning: Bool {
@@ -33,13 +40,21 @@ actor LocalHTTPProxyServer {
 
         let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         let requestEventSink = requestEventSink
+        var upstreamTLSConfiguration = TLSConfiguration.makeClientConfiguration()
+        upstreamTLSConfiguration.applicationProtocols = ["http/1.1"]
+        let upstreamTLSContext = try NIOSSLContext(configuration: upstreamTLSConfiguration)
+
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 256)
             .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelInitializer { channel in
                 channel.pipeline.addHandlers([
-                    HTTPProxyForwardingHandler(requestEventSink: requestEventSink),
-                    AttributionHandler(resolver: self.processResolver, iconStore: self.appIconStore)
+                    HTTPProxyForwardingHandler(
+                        certificateMaterialManager: self.certificateMaterialManager,
+                        upstreamTLSContext: upstreamTLSContext,
+                        requestEventSink: requestEventSink
+                    ),
+                    AttributionHandler(resolver: self.processResolver, iconStore: self.appIconStore),
                 ])
             }
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)

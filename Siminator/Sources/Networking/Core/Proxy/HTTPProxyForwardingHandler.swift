@@ -1,14 +1,17 @@
 import Foundation
 import NIOCore
+import NIOHTTP1
 import NIOPosix
+import NIOSSL
 
-nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unchecked Sendable {
+final nonisolated class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
 
     private enum State {
         case waitingForRequest
         case connecting
+        case preparingMITM
         case forwarding
         case closed
     }
@@ -18,9 +21,19 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
     private var upstreamChannel: Channel?
     private var currentRequestID: CapturedNetworkRequest.ID?
     private var resolvedProcess: CapturedRequestProcess?
+    private var pendingTLSBuffer: ByteBuffer?
+    private var mitmSetupStarted = false
+    private let certificateMaterialManager: CertificateMaterialManager
+    private let upstreamTLSContext: NIOSSLContext
     private let requestEventSink: LocalHTTPProxyServer.RequestEventSink?
 
-    init(requestEventSink: LocalHTTPProxyServer.RequestEventSink? = nil) {
+    init(
+        certificateMaterialManager: CertificateMaterialManager,
+        upstreamTLSContext: NIOSSLContext,
+        requestEventSink: LocalHTTPProxyServer.RequestEventSink? = nil
+    ) {
+        self.certificateMaterialManager = certificateMaterialManager
+        self.upstreamTLSContext = upstreamTLSContext
         self.requestEventSink = requestEventSink
     }
 
@@ -39,6 +52,9 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
 
         case .connecting:
             appendInitialBuffer(&buffer, allocator: context.channel.allocator)
+
+        case .preparingMITM:
+            appendPendingTLSBuffer(&buffer, allocator: context.channel.allocator)
 
         case .forwarding:
             guard let upstreamChannel else {
@@ -99,12 +115,18 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
 
     private func handleInitialRequestIfPossible(context: ChannelHandlerContext) {
         guard let initialBuffer = pendingInitialBuffer,
-              let request = HTTPProxyInitialRequest(buffer: initialBuffer) else {
+              let request = HTTPProxyInitialRequest(buffer: initialBuffer)
+        else {
             return
         }
 
         state = .connecting
         pendingInitialBuffer = nil
+
+        if request.isConnect {
+            prepareMITMConnection(context: context, request: request)
+            return
+        }
 
         let bootstrap = ClientBootstrap(group: context.eventLoop)
             .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -119,6 +141,7 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
             createdAt: Date(),
             completedAt: nil,
             method: request.method,
+            scheme: "http",
             host: request.host,
             port: request.port,
             path: request.displayPath,
@@ -168,6 +191,115 @@ nonisolated final class HTTPProxyForwardingHandler: ChannelInboundHandler, @unch
                 self.writeBadGatewayAndClose(context: context)
             }
         }
+    }
+
+    private func appendPendingTLSBuffer(_ buffer: inout ByteBuffer, allocator: ByteBufferAllocator) {
+        guard buffer.readableBytes > 0 else {
+            return
+        }
+
+        if pendingTLSBuffer == nil {
+            pendingTLSBuffer = allocator.buffer(capacity: buffer.readableBytes)
+        }
+
+        pendingTLSBuffer?.writeBuffer(&buffer)
+    }
+
+    private func prepareMITMConnection(context: ChannelHandlerContext, request: HTTPProxyInitialRequest) {
+        state = .preparingMITM
+        let tunneledBytes = request.tunneledBodyBuffer(allocator: context.channel.allocator)
+        var mutableTunneledBytes = tunneledBytes
+        appendPendingTLSBuffer(&mutableTunneledBytes, allocator: context.channel.allocator)
+
+        let response = context.channel.allocator.buffer(
+            string: "HTTP/1.1 200 Connection Established\r\n\r\n"
+        )
+
+        context.writeAndFlush(wrapOutboundOut(response)).whenComplete { [weak self] result in
+            guard let self else { return }
+
+            switch result {
+            case .success:
+                self.startMITMSetupIfNeeded(
+                    channel: context.channel,
+                    host: request.host,
+                    port: request.port
+                )
+            case let .failure(error):
+                print("Siminator proxy failed to establish CONNECT tunnel: \(error)")
+                self.closeBoth(context: context)
+            }
+        }
+    }
+
+    private func startMITMSetupIfNeeded(channel: Channel, host: String, port: Int) {
+        guard !mitmSetupStarted else { return }
+        mitmSetupStarted = true
+
+        let certificateMaterialManager = certificateMaterialManager
+        Task {
+            do {
+                let serverTLSContext = try await certificateMaterialManager.serverTLSContext(for: host)
+
+                channel.eventLoop.execute { [weak self] in
+                    self?.installMITMPipeline(
+                        channel: channel,
+                        serverTLSContext: serverTLSContext,
+                        host: host,
+                        port: port
+                    )
+                }
+            } catch {
+                channel.eventLoop.execute { [weak self] in
+                    self?.failMITMSetup(channel: channel, error: error)
+                }
+            }
+        }
+    }
+
+    private func installMITMPipeline(
+        channel: Channel,
+        serverTLSContext: NIOSSLContext,
+        host: String,
+        port: Int
+    ) {
+        do {
+            let tlsHandler = NIOSSLServerHandler(context: serverTLSContext)
+            let mitmHandler = HTTPSMITMRequestHandler(
+                destinationHost: host,
+                destinationPort: port,
+                upstreamTLSContext: upstreamTLSContext,
+                initialProcess: resolvedProcess ?? .unknown,
+                requestEventSink: requestEventSink
+            )
+
+            try channel.pipeline.syncOperations.addHandlers(
+                [
+                    tlsHandler,
+                    HTTPResponseEncoder(),
+                    ByteToMessageHandler(HTTPRequestDecoder()),
+                    mitmHandler,
+                ],
+                position: .after(self)
+            )
+
+            let pendingTLSBuffer = pendingTLSBuffer
+            self.pendingTLSBuffer = nil
+
+            try channel.pipeline.syncOperations.removeHandler(self)
+
+            if let pendingTLSBuffer, pendingTLSBuffer.readableBytes > 0 {
+                channel.pipeline.fireChannelRead(NIOAny(pendingTLSBuffer))
+            }
+        } catch {
+            failMITMSetup(channel: channel, error: error)
+        }
+    }
+
+    private func failMITMSetup(channel: Channel, error: Swift.Error) {
+        print("Siminator proxy failed to prepare HTTPS MITM: \(error)")
+        state = .closed
+        channel.close(promise: nil)
     }
 
     private func writeBadGatewayAndClose(context: ChannelHandlerContext) {

@@ -22,7 +22,7 @@ let project = Project(
             product: .app,
             bundleId: "dev.atlab.Siminator",
             infoPlist: .extendingDefault(with: [
-                "LSUIElement": true
+                "LSUIElement": true,
             ]),
             buildableFolders: [
                 "Siminator/Sources",
@@ -35,6 +35,7 @@ let project = Project(
                 .external(name: "NIOHTTP1"),
                 .external(name: "NIOHTTP2"),
                 .external(name: "NIOPosix"),
+                .external(name: "NIOSSL"),
             ],
             settings: .settings(base: appSettings)
         ),
@@ -57,7 +58,7 @@ let project = Project(
             bundleId: "dev.atlab.SiminatorTests",
             infoPlist: .default,
             buildableFolders: [
-                "Siminator/Tests"
+                "Siminator/Tests",
             ],
             dependencies: [.target(name: "Siminator")]
         ),

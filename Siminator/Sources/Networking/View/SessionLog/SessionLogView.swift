@@ -2,22 +2,20 @@ import Foundation
 import SwiftUI
 
 struct SessionLogView: View {
-    
     @Bindable var viewModel: SessionLogVM
     @State private var isSessionBrowserPresented = false
     @State private var isAppFilterPresented = false
     @FocusState private var isSessionTitleFocused: Bool
     @FocusState private var isURLFilterFocused: Bool
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            
             toolSection
-            
+
             if viewModel.logginSettingsEnabled {
                 advancedFiltering
             }
-            
+
             if let requestSummary {
                 Text(requestSummary)
                     .font(.caption)
@@ -50,8 +48,9 @@ struct SessionLogView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
-    
+
     // MARK: - Tool section
+
     var toolSection: some View {
         HStack(spacing: 8) {
             IconMaterialButton(
@@ -67,11 +66,11 @@ struct SessionLogView: View {
                     .padding(16)
                     .frame(width: 220, alignment: .leading)
             }
-            
+
             IconMaterialButton(systemImage: "wrench.and.screwdriver", accessibilityLabel: "Preview logging settings") {
                 viewModel.logginSettingsEnabled.toggle()
             }
-            
+
             Spacer(minLength: 8)
 
             TextField("Session title", text: $viewModel.activeSession.title)
@@ -83,8 +82,9 @@ struct SessionLogView: View {
         .padding(.horizontal, 16)
         .defaultFocus($isSessionTitleFocused, false)
     }
-    
+
     // MARK: - Advanced filtering
+
     var advancedFiltering: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -308,19 +308,20 @@ private extension View {
 }
 
 #if DEBUG
-#Preview {
-    let requests = (1...5).map { i in
-        CapturedNetworkRequest(
-            id: UUID(),
-            createdAt: Date(),
-            method: "GET",
-            host: "127.0.0.1",
-            port: 9090,
-            path: "https://example.com/apiv1/dogs",
-            status: .succeeded,
-            process: .unknown
-        )
+    #Preview {
+        let requests = (1 ... 5).map { _ in
+            CapturedNetworkRequest(
+                id: UUID(),
+                createdAt: Date(),
+                method: "GET",
+                scheme: "https",
+                host: "127.0.0.1",
+                port: 9090,
+                path: "/apiv1/dogs",
+                status: .succeeded,
+                process: .unknown
+            )
+        }
+        SessionLogView(viewModel: .init(requests: requests))
     }
-    SessionLogView(viewModel: .init(requests: requests))
-}
 #endif
