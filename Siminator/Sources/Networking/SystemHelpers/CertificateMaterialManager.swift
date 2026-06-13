@@ -47,6 +47,13 @@ actor CertificateMaterialManager {
         return material
     }
 
+    func deleteCertificateMaterial() throws {
+        let material = try certificateMaterialURLs()
+
+        try? FileManager.default.removeItem(at: material.certificateURL)
+        try? FileManager.default.removeItem(at: material.privateKeyURL)
+    }
+
     private func generateRootCA(
         certificateURL: URL,
         privateKeyURL: URL

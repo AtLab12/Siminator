@@ -421,6 +421,21 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         }
     }
 
+    func deleteCertificates() {
+        Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await certificateMaterialManager.deleteCertificateMaterial()
+                state.isCertificateGenerated = false
+                state.isCertificateGenerating = false
+                state.certificateStatus = "Certificate not generated"
+            } catch {
+                state.certificateStatus = "Certificate deletion failed: \(error.localizedDescription)"
+            }
+        }
+    }
+
     private func refreshCertificateState() async throws {
         let certificateState = try await certificateMaterialManager.certificateState()
         state.isCertificateGenerated = certificateState.isGenerated

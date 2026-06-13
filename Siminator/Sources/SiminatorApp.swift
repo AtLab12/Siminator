@@ -19,6 +19,16 @@ struct SiminatorApp: App {
                     Image(systemName: "arrow.trianglehead.counterclockwise")
                 }
             }
+
+            Button {
+                appDelegate.deleteCertificates()
+            } label: {
+                Label {
+                    Text("Delete Certificates")
+                } icon: {
+                    Image(systemName: "trash")
+                }
+            }
         }
 
         Settings {
@@ -105,5 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func refreshCertificate() {
         networkingSidebarController.refreshCertificateState()
+    }
+
+    func deleteCertificates() {
+        networkingSidebarController.deleteCertificates()
     }
 }
