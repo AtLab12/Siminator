@@ -1,5 +1,5 @@
 //
-//  NetworkingSidebarState.swift
+//  NetworkingSidebarVM.swift
 //  Siminator
 //
 //  Created by Mikolaj Zawada on 08/06/2026.
@@ -7,9 +7,8 @@
 
 import Foundation
 
-
-///Closely works with NetworkingSidebarController
-///Exists as a bridge between underlying proxy logic and view state
+/// Closely works with NetworkingSidebarController
+/// Exists as a bridge between underlying proxy logic and view state
 @MainActor
 @Observable
 final class NetworkingSidebarVM {
@@ -19,15 +18,15 @@ final class NetworkingSidebarVM {
     var isCaptureRunning = false
     var captureStatus = "Proxy stopped"
     var proxyRoutingStatus = "System proxy disabled"
-    var isCertificateInstalling = false
-    var isCertificateTrusted = false
-    var certificateStatus = "Certificate not trusted"
+    var isCertificateGenerating = false
+    var isCertificateGenerated = false
+    var certificateStatus = "Certificate not generated"
     let sessionViewModel: SessionLogVM
-    
+
     var clearSessionButtonVisible: Bool {
         !sessionViewModel.visibleRequests.isEmpty
     }
-    
+
     init(
         isDetached: Bool = false,
         isCaptureStarting: Bool = false,
@@ -35,9 +34,9 @@ final class NetworkingSidebarVM {
         isCaptureRunning: Bool = false,
         captureStatus: String = "Proxy stopped",
         proxyRoutingStatus: String = "System proxy disabled",
-        isCertificateInstalling: Bool = false,
-        isCertificateTrusted: Bool = false,
-        certificateStatus: String = "Certificate not trusted"
+        isCertificateGenerating: Bool = false,
+        isCertificateGenerated: Bool = false,
+        certificateStatus: String = "Certificate not generated"
     ) {
         self.isDetached = isDetached
         self.isCaptureStarting = isCaptureStarting
@@ -45,20 +44,20 @@ final class NetworkingSidebarVM {
         self.isCaptureRunning = isCaptureRunning
         self.captureStatus = captureStatus
         self.proxyRoutingStatus = proxyRoutingStatus
-        self.isCertificateInstalling = isCertificateInstalling
-        self.isCertificateTrusted = isCertificateTrusted
+        self.isCertificateGenerating = isCertificateGenerating
+        self.isCertificateGenerated = isCertificateGenerated
         self.certificateStatus = certificateStatus
-        self.sessionViewModel = .init()
+        sessionViewModel = .init()
     }
-    
+
     func handleRequestEvent(_ event: CapturedNetworkRequestEvent) {
         sessionViewModel.handleRequestEvent(event)
     }
-    
+
     func clearSession() {
         sessionViewModel.clearSession()
     }
-    
+
     func beginNewSession() {
         sessionViewModel.beginNewSession()
     }

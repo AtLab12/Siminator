@@ -23,10 +23,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private lazy var proxyServer = LocalHTTPProxyServer(appIconStore: appIconStore) { [weak self] event in
         self?.state.handleRequestEvent(event)
     }
-    private let certificateTrustManager = CertificateTrustManager()
+
+    private let certificateMaterialManager = CertificateMaterialManager()
     private let systemProxySettingsManager = SystemProxySettingsManager()
     private var proxyControlTask: Task<Void, Never>?
-    private var certificateInstallTask: Task<Void, Never>?
+    private var certificateGenerationTask: Task<Void, Never>?
     private var captureOperationID = 0
     var onEnabledChanged: (@MainActor (Bool) -> Void)?
     var onPanelInteraction: (@MainActor () -> Void)?
@@ -36,7 +37,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             contentRect: NSRect(x: 100, y: 100, width: Layout.width, height: 600),
             styleMask: [
                 .borderless,
-                .nonactivatingPanel
+                .nonactivatingPanel,
             ],
             backing: .buffered,
             defer: false
@@ -54,7 +55,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         panel.hidesOnDeactivate = false
         panel.collectionBehavior = [
             .canJoinAllSpaces,
-            .fullScreenAuxiliary
+            .fullScreenAuxiliary,
         ]
 
         let hostingView = NSHostingView(
@@ -66,8 +67,8 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                 onCaptureToggled: { [weak self] in
                     self?.toggleCapture()
                 },
-                onCertificateInstallRequested: { [weak self] in
-                    self?.requestCertificateInstall()
+                onCertificateGenerationRequested: { [weak self] in
+                    self?.requestCertificateGeneration()
                 }
             )
             .environment(appIconCache)
@@ -82,7 +83,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             }
         }
         configureDockedPanel()
-        refreshCertificateTrustState()
+        refreshCertificateState()
     }
 
     func setEnabled(_ isEnabled: Bool) {
@@ -118,7 +119,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         showIfPossible()
     }
 
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
+    func windowShouldClose(_: NSWindow) -> Bool {
         setEnabled(false)
         onEnabledChanged?(false)
         return false
@@ -189,7 +190,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private func configureDockedPanel() {
         panel.styleMask = [
             .borderless,
-            .nonactivatingPanel
+            .nonactivatingPanel,
         ]
         panel.title = ""
         panel.titleVisibility = .hidden
@@ -199,7 +200,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         panel.minSize = NSSize(width: Layout.width, height: Layout.minimumDetachedHeight)
         panel.collectionBehavior = [
             .canJoinAllSpaces,
-            .fullScreenAuxiliary
+            .fullScreenAuxiliary,
         ]
     }
 
@@ -208,7 +209,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             .titled,
             .closable,
             .miniaturizable,
-            .resizable
+            .resizable,
         ]
         panel.titleVisibility = .visible
         panel.titlebarAppearsTransparent = false
@@ -364,14 +365,14 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             guard let self else { return }
 
             do {
-                try await refreshCertificateTrustState()
+                try await refreshCertificateState()
                 guard isCurrentCaptureOperation(operationID) else { return }
 
-                if !state.isCertificateTrusted {
-                    let didInstallCertificate = await performCertificateInstallFlow()
+                if !state.isCertificateGenerated {
+                    let didGenerateCertificate = await performCertificateGenerationFlow()
                     guard isCurrentCaptureOperation(operationID) else { return }
 
-                    guard didInstallCertificate else {
+                    guard didGenerateCertificate else {
                         state.captureStatus = "Proxy start cancelled"
                         state.isCaptureStarting = false
                         state.isCaptureStopping = false
@@ -413,23 +414,21 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         }
     }
 
-    func refreshCertificateTrustState() {
+    func refreshCertificateState() {
         Task { [weak self] in
             guard let self else { return }
-            try? await refreshCertificateTrustState()
+            try? await refreshCertificateState()
         }
     }
 
-    private func refreshCertificateTrustState() async throws {
-        let trustState = try await certificateTrustManager.trustState()
-        state.isCertificateTrusted = trustState.isTrusted
+    private func refreshCertificateState() async throws {
+        let certificateState = try await certificateMaterialManager.certificateState()
+        state.isCertificateGenerated = certificateState.isGenerated
 
-        if trustState.isTrusted {
-            state.certificateStatus = "Trusted: \(trustState.certificateURL?.lastPathComponent ?? "Siminator Root CA")"
-        } else if trustState.certificateURL != nil {
-            state.certificateStatus = "Certificate generated but not trusted"
+        if certificateState.isGenerated {
+            state.certificateStatus = "Generated: \(certificateState.certificateURL?.lastPathComponent ?? "Siminator Root CA")"
         } else {
-            state.certificateStatus = "Certificate not trusted"
+            state.certificateStatus = "Certificate not generated"
         }
     }
 
@@ -471,48 +470,47 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    private func performCertificateInstallFlow() async -> Bool {
-        guard confirmCertificateTrust() else {
-            state.certificateStatus = "Certificate trust cancelled"
+    private func performCertificateGenerationFlow() async -> Bool {
+        guard confirmCertificateGeneration() else {
+            state.certificateStatus = "Certificate generation cancelled"
             return false
         }
 
-        state.isCertificateInstalling = true
-        state.certificateStatus = "Installing certificate in login keychain"
+        state.isCertificateGenerating = true
+        state.certificateStatus = "Generating certificate files"
 
         do {
-            let certificateURL = try await certificateTrustManager.installTrustedRootCertificate()
-            state.isCertificateTrusted = true
-            state.certificateStatus = "Trusted: \(certificateURL.lastPathComponent)"
-            state.isCertificateInstalling = false
+            let material = try await certificateMaterialManager.ensureCertificateMaterialExists()
+            state.isCertificateGenerated = true
+            state.certificateStatus = "Generated: \(material.certificateURL.lastPathComponent)"
+            state.isCertificateGenerating = false
             return true
         } catch {
-            state.isCertificateTrusted = false
-            state.certificateStatus = "Certificate install failed: \(error.localizedDescription)"
-            state.isCertificateInstalling = false
+            state.isCertificateGenerated = false
+            state.certificateStatus = "Certificate generation failed: \(error.localizedDescription)"
+            state.isCertificateGenerating = false
             return false
         }
     }
 
-    private func requestCertificateInstall() {
-        guard certificateInstallTask == nil else { return }
+    private func requestCertificateGeneration() {
+        guard certificateGenerationTask == nil else { return }
 
-        certificateInstallTask = Task { [weak self] in
+        certificateGenerationTask = Task { [weak self] in
             guard let self else { return }
-            _ = await performCertificateInstallFlow()
-            certificateInstallTask = nil
+            _ = await performCertificateGenerationFlow()
+            certificateGenerationTask = nil
         }
     }
 
-    private func confirmCertificateTrust() -> Bool {
+    private func confirmCertificateGeneration() -> Bool {
         let alert = NSAlert()
-        alert.messageText = "Trust Siminator Root Certificate?"
+        alert.messageText = "Generate Siminator Root Certificate?"
         alert.informativeText = """
-        Siminator needs a local root certificate to decrypt and display HTTPS traffic. The certificate and private key are generated on this Mac. The private key is imported into your login keychain and removed from file storage.
-        macOS will add this certificate as trusted for your login keychain. 
+        Siminator needs a local root certificate and private key to decrypt and display HTTPS traffic. Both files are generated on this Mac and stored together in Application Support.
         """
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Trust and Install")
+        alert.addButton(withTitle: "Generate")
         alert.addButton(withTitle: "Cancel")
 
         NSApp.activate()

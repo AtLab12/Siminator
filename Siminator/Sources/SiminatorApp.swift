@@ -2,7 +2,6 @@ import SwiftUI
 
 @main
 struct SiminatorApp: App {
-
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -10,7 +9,7 @@ struct SiminatorApp: App {
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
-            
+
             Button {
                 appDelegate.refreshCertificate()
             } label: {
@@ -34,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let networkingSidebarController = NetworkingSidebarController()
     private let tracker = SimTrackingEngine()
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
         panelController.onNetworkingEnabledChanged = { [weak self] isEnabled in
@@ -103,8 +102,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController.bringToFrontWithSimulator()
         networkingSidebarController.bringToFrontWithSimulator()
     }
-    
+
     func refreshCertificate() {
-        self.networkingSidebarController.refreshCertificateTrustState()
+        networkingSidebarController.refreshCertificateState()
     }
 }

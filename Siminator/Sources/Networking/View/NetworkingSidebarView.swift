@@ -6,7 +6,7 @@ struct NetworkingSidebarView: View {
 
     let onDetachedChanged: @MainActor (Bool) -> Void
     let onCaptureToggled: @MainActor () -> Void
-    let onCertificateInstallRequested: @MainActor () -> Void
+    let onCertificateGenerationRequested: @MainActor () -> Void
 
     var body: some View {
         VStack(spacing: 14) {
@@ -19,7 +19,7 @@ struct NetworkingSidebarView: View {
                 Divider()
             }
             .padding(.horizontal, 16)
-            
+
             sessionSection
         }
         .padding(.top, 16)
@@ -55,7 +55,7 @@ struct NetworkingSidebarView: View {
             }
         }
     }
-    
+
     @ViewBuilder
     var background: some View {
         if viewModel.isDetached {
@@ -66,24 +66,24 @@ struct NetworkingSidebarView: View {
                 .fill(.regularMaterial)
         }
     }
-    
+
     var certificateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if viewModel.isCertificateTrusted {
+            if viewModel.isCertificateGenerated {
                 Label(viewModel.certificateStatus, systemImage: "checkmark.shield.fill")
                     .font(.callout)
                     .foregroundStyle(.green)
                     .lineLimit(2)
             } else {
                 Button {
-                    onCertificateInstallRequested()
+                    onCertificateGenerationRequested()
                 } label: {
-                    Label("Trust Certificate", systemImage: "shield")
+                    Label("Generate Certificate", systemImage: "shield")
                 }
                 .buttonStyle(.bordered)
-                .disabled(viewModel.isCertificateInstalling)
+                .disabled(viewModel.isCertificateGenerating)
 
-                if viewModel.isCertificateInstalling {
+                if viewModel.isCertificateGenerating {
                     ProgressView()
                         .controlSize(.small)
                 }
@@ -95,7 +95,7 @@ struct NetworkingSidebarView: View {
             }
         }
     }
-    
+
     var proxyControlSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -121,7 +121,7 @@ struct NetworkingSidebarView: View {
                 .accessibilityLabel(captureButtonTitle)
 
                 Spacer()
-                
+
                 if viewModel.clearSessionButtonVisible {
                     Button {
                         withAnimation {

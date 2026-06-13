@@ -35,7 +35,7 @@ The idea is simple: **one focused workspace for debugging, capturing, and shapin
 | | |
 |---|---|
 | **Networking sidebar** | Docks to the Simulator window and captures HTTP/HTTPS traffic in real time |
-| **App-scoped proxy** | Local proxy with certificate trust — inspect TLS without drowning in system-wide noise |
+| **App-scoped proxy** | Local proxy with generated certificate files — inspect TLS without drowning in system-wide noise |
 | **Session storage** | Record and browse captured requests per live session |
 | **Simulator tracking** | Follows the Simulator window as you move or resize it |
 | **Menu bar app** | Runs as a lightweight accessory app — stays out of your way until you need it |
