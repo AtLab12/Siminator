@@ -22,7 +22,6 @@ actor CertificateMaterialManager {
 
         return CertificateMaterialState(
             certificateURL: isGenerated ? certificateURL : nil,
-            privateKeyURL: isGenerated ? privateKeyURL : nil,
             isGenerated: isGenerated
         )
     }
@@ -295,7 +294,6 @@ struct CertificateMaterial: Sendable {
 
 struct CertificateMaterialState: Sendable {
     let certificateURL: URL?
-    let privateKeyURL: URL?
     let isGenerated: Bool
 }
 

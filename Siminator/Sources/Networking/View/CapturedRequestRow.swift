@@ -1,11 +1,3 @@
-//
-//  CapturedRequestRow.swift
-//  Siminator
-//
-//  Created by Mikolaj Zawada on 08/06/2026.
-//
-
-import Foundation
 import SwiftUI
 
 struct CapturedRequestRow: View {
@@ -61,7 +53,7 @@ struct CapturedRequestRow: View {
 }
 
 struct RequestProcessIcon: View {
-    private struct Style {
+    private enum Style {
         static let cornerRadius: CGFloat = 6
         static let fallbackSymbolSize: CGFloat = 18
         static let fallbackSide: CGFloat = 28

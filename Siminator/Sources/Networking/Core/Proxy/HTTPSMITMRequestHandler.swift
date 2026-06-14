@@ -142,8 +142,6 @@ final nonisolated class HTTPSMITMRequestHandler: ChannelInboundHandler, @uncheck
 
         emit(.started(CapturedNetworkRequest(
             id: requestID,
-            createdAt: Date(),
-            completedAt: nil,
             method: head.method.rawValue,
             scheme: "https",
             host: destinationHost,
@@ -262,22 +260,18 @@ final nonisolated class HTTPSRequestStatusQueue: @unchecked Sendable {
         emit(
             .statusChanged(
                 id: requestID,
-                status: .succeeded,
-                completedAt: Date()
+                status: .succeeded
             ),
             requestEventSink: requestEventSink
         )
     }
 
     func failAll(requestEventSink: LocalHTTPProxyServer.RequestEventSink?) {
-        let now = Date()
-
         for requestID in requestIDsWaitingForResponse {
             emit(
                 .statusChanged(
                     id: requestID,
-                    status: .failed,
-                    completedAt: now
+                    status: .failed
                 ),
                 requestEventSink: requestEventSink
             )

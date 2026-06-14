@@ -3,9 +3,7 @@ import NIOCore
 import NIOPosix
 
 nonisolated struct SocketTuple: Hashable, Sendable {
-    let localIP: String
     let localPort: UInt16
-    let remoteIP: String
     let remotePort: UInt16
 }
 
@@ -16,7 +14,7 @@ nonisolated struct ResolvedProcessEvent: Sendable {
     let process: CapturedRequestProcess
 }
 
-nonisolated final class AttributionHandler: ChannelInboundHandler, @unchecked Sendable {
+final nonisolated class AttributionHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
 
     private let resolver: ProcessResolver
@@ -83,9 +81,7 @@ nonisolated final class AttributionHandler: ChannelInboundHandler, @unchecked Se
 extension SocketTuple {
     nonisolated static func make(local: SocketAddress, remote: SocketAddress) -> SocketTuple? {
         guard
-            let localIP = local.ipAddress,
             let localPort = local.port.map(UInt16.init),
-            let remoteIP = remote.ipAddress,
             let remotePort = remote.port.map(UInt16.init)
         else {
             return nil
@@ -94,9 +90,7 @@ extension SocketTuple {
         switch (local, remote) {
         case (.v4, .v4), (.v6, .v6):
             return .init(
-                localIP: localIP,
                 localPort: localPort,
-                remoteIP: remoteIP,
                 remotePort: remotePort
             )
         default:

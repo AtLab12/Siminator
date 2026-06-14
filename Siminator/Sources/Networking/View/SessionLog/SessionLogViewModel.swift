@@ -18,33 +18,35 @@ struct SessionLogAppFilter: Identifiable, Hashable, Sendable {
 @Observable
 final class SessionLogVM {
     private enum RequestBuffer {
-        static let visibleLimit = 1_000
+        static let visibleLimit = 1000
         static let trimBatchSize = 500
     }
-    
+
     var activeSession = NetworkingCaptureSession()
-    public private(set) var visibleRequests: [CapturedNetworkRequest] = []
-    public private(set) var filteredRequests: [CapturedNetworkRequest] = []
-    public private(set) var appFilters: [SessionLogAppFilter] = []
+    private(set) var visibleRequests: [CapturedNetworkRequest] = []
+    private(set) var filteredRequests: [CapturedNetworkRequest] = []
+    private(set) var appFilters: [SessionLogAppFilter] = []
     var totalRequestCount = 0
     var logginSettingsEnabled: Bool = false {
         didSet {
             refreshFilteredRequests()
         }
     }
+
     var urlFilterText = "" {
         didSet {
             guard oldValue != urlFilterText else { return }
             refreshFilteredRequests()
         }
     }
+
     var selectedAppFilter: SessionLogAppFilter? {
         didSet {
             guard oldValue != selectedAppFilter else { return }
             refreshFilteredRequests()
         }
     }
-    
+
     @ObservationIgnored private var requestIndexes: [CapturedNetworkRequest.ID: Int] = [:]
 
     func beginNewSession() {
@@ -62,13 +64,12 @@ final class SessionLogVM {
         case let .started(request):
             append(request)
 
-        case let .statusChanged(id, status, completedAt):
+        case let .statusChanged(id, status):
             guard let index = requestIndexes[id], visibleRequests.indices.contains(index) else {
                 return
             }
 
             visibleRequests[index].status = status
-            visibleRequests[index].completedAt = completedAt
             refreshFilteredRequests()
 
         case let .processResolved(id, process):
@@ -106,7 +107,7 @@ final class SessionLogVM {
             requestIndexes[request.id] = index
         }
     }
-    
+
     func clearSession() {
         visibleRequests.removeAll(keepingCapacity: true)
         filteredRequests.removeAll(keepingCapacity: true)
@@ -177,14 +178,13 @@ private extension CapturedRequestProcess {
     }
 }
 
-
 #if DEBUG
-extension SessionLogVM {
-    convenience init(requests: [CapturedNetworkRequest]) {
-        self.init()
-        requests.forEach {
-            self.append($0)
+    extension SessionLogVM {
+        convenience init(requests: [CapturedNetworkRequest]) {
+            self.init()
+            for request in requests {
+                append(request)
+            }
         }
     }
-}
 #endif

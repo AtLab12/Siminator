@@ -1,9 +1,8 @@
-import Foundation
 import AppKit
+import Foundation
 
 /// The process that owns a given TCP connection, resolved from a socket tuple.
 struct ResolvedApp: Sendable {
-    let pid: pid_t
     let path: String
     let runningApp: NSRunningApplication?
     let bundleID: String?
@@ -75,7 +74,7 @@ actor ProcessResolver {
             // port is the proxy's remote port and vice versa
             if localPort == tuple.remotePort && remotePort == tuple.localPort {
                 // Resolve the executable path for the matching process.
-                var pathBuf = Array<CChar>(repeating: 0, count: Int(sim_proc_pidpathinfo_maxsize()))
+                var pathBuf = [CChar](repeating: 0, count: Int(sim_proc_pidpathinfo_maxsize()))
                 let len = sim_proc_pidpath(pid, &pathBuf, UInt32(pathBuf.count))
                 // The buffer is NUL-terminated; keep only the bytes before
                 // the terminator and decode them as UTF-8.
@@ -87,9 +86,8 @@ actor ProcessResolver {
                 // NSRunningApplication is nil for non-app processes
                 let app = NSRunningApplication(processIdentifier: pid)
                 let bundleID = app?.bundleIdentifier ?? Self.bundleIdentifier(forExecutablePath: path)
-                
+
                 return ResolvedApp(
-                    pid: pid,
                     path: path,
                     runningApp: app,
                     bundleID: bundleID
@@ -98,7 +96,7 @@ actor ProcessResolver {
         }
         return nil
     }
-    
+
     private static func bundleIdentifier(forExecutablePath path: String) -> String? {
         guard !path.isEmpty else { return nil }
 

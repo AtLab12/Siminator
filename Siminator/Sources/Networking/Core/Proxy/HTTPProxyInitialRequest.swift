@@ -7,7 +7,6 @@
 
 import Foundation
 import NIOCore
-import NIOPosix
 
 nonisolated struct HTTPProxyInitialRequest: Sendable {
     let method: String
@@ -21,7 +20,8 @@ nonisolated struct HTTPProxyInitialRequest: Sendable {
 
     init?(buffer: ByteBuffer) {
         guard let requestBytes = buffer.getBytes(at: buffer.readerIndex, length: buffer.readableBytes),
-              let headerEnd = requestBytes.firstRange(of: [13, 10, 13, 10]) else {
+              let headerEnd = requestBytes.firstRange(of: [13, 10, 13, 10])
+        else {
             return nil
         }
 

@@ -1,6 +1,4 @@
 import Foundation
-import NIOCore
-import NIOPosix
 
 nonisolated struct HTTPProxyDestination: Sendable {
     let host: String

@@ -1,8 +1,6 @@
-import Foundation
 import NIOCore
-import NIOPosix
 
-nonisolated final class UpstreamToClientForwardingHandler: ChannelInboundHandler, @unchecked Sendable {
+final nonisolated class UpstreamToClientForwardingHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
 
     private let clientChannel: Channel
@@ -11,7 +9,7 @@ nonisolated final class UpstreamToClientForwardingHandler: ChannelInboundHandler
         self.clientChannel = clientChannel
     }
 
-    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+    func channelRead(context _: ChannelHandlerContext, data: NIOAny) {
         let buffer = unwrapInboundIn(data)
         clientChannel.writeAndFlush(buffer, promise: nil)
     }

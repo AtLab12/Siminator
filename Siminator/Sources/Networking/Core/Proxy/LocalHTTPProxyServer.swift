@@ -1,4 +1,3 @@
-import Foundation
 import NIOCore
 import NIOPosix
 import NIOSSL
@@ -27,10 +26,6 @@ actor LocalHTTPProxyServer {
         self.certificateMaterialManager = certificateMaterialManager
         self.requestEventSink = requestEventSink
         processResolver = .init()
-    }
-
-    var isRunning: Bool {
-        channel != nil
     }
 
     func start(port: Int = ProxyConstants.port) async throws -> Int {

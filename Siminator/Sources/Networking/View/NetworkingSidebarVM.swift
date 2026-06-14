@@ -1,10 +1,3 @@
-//
-//  NetworkingSidebarVM.swift
-//  Siminator
-//
-//  Created by Mikolaj Zawada on 08/06/2026.
-//
-
 import Foundation
 
 /// Closely works with NetworkingSidebarController
@@ -27,26 +20,7 @@ final class NetworkingSidebarVM {
         !sessionViewModel.visibleRequests.isEmpty
     }
 
-    init(
-        isDetached: Bool = false,
-        isCaptureStarting: Bool = false,
-        isCaptureStopping: Bool = false,
-        isCaptureRunning: Bool = false,
-        captureStatus: String = "Proxy stopped",
-        proxyRoutingStatus: String = "System proxy disabled",
-        isCertificateGenerating: Bool = false,
-        isCertificateGenerated: Bool = false,
-        certificateStatus: String = "Certificate not generated"
-    ) {
-        self.isDetached = isDetached
-        self.isCaptureStarting = isCaptureStarting
-        self.isCaptureStopping = isCaptureStopping
-        self.isCaptureRunning = isCaptureRunning
-        self.captureStatus = captureStatus
-        self.proxyRoutingStatus = proxyRoutingStatus
-        self.isCertificateGenerating = isCertificateGenerating
-        self.isCertificateGenerated = isCertificateGenerated
-        self.certificateStatus = certificateStatus
+    init() {
         sessionViewModel = .init()
     }
 

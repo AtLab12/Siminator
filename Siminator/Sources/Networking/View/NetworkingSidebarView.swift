@@ -169,10 +169,6 @@ struct NetworkingSidebarView: View {
     private var captureButtonSystemImage: String {
         viewModel.isCaptureRunning ? "stop.fill" : "record.circle"
     }
-
-    private var captureStatusColor: Color {
-        viewModel.isCaptureRunning || viewModel.isCaptureStarting || viewModel.isCaptureStopping ? .green : .secondary
-    }
 }
 
 struct IconMaterialButton: View {

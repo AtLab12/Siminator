@@ -312,7 +312,6 @@ private extension View {
         let requests = (1 ... 5).map { _ in
             CapturedNetworkRequest(
                 id: UUID(),
-                createdAt: Date(),
                 method: "GET",
                 scheme: "https",
                 host: "127.0.0.1",

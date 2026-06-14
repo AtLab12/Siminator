@@ -1,4 +1,3 @@
-import Foundation
 import SwiftUI
 
 @MainActor
@@ -15,7 +14,7 @@ struct ToolsHomeView: View {
     var body: some View {
         VStack {
             Text("Siminator by Mikolaj Zawada")
-            
+
             Toggle(isOn: $state.showNetworkingSidebar) {
                 Text("Show networking sidebar")
             }

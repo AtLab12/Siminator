@@ -94,8 +94,7 @@ final nonisolated class HTTPProxyForwardingHandler: ChannelInboundHandler, Remov
         if let currentRequestID {
             emit(.statusChanged(
                 id: currentRequestID,
-                status: .failed,
-                completedAt: Date()
+                status: .failed
             ))
         }
         closeBoth(context: context)
@@ -138,8 +137,6 @@ final nonisolated class HTTPProxyForwardingHandler: ChannelInboundHandler, Remov
         currentRequestID = requestID
         emit(.started(CapturedNetworkRequest(
             id: requestID,
-            createdAt: Date(),
-            completedAt: nil,
             method: request.method,
             scheme: "http",
             host: request.host,
@@ -160,33 +157,18 @@ final nonisolated class HTTPProxyForwardingHandler: ChannelInboundHandler, Remov
                 self.state = .forwarding
                 self.emit(.statusChanged(
                     id: requestID,
-                    status: .succeeded,
-                    completedAt: Date()
+                    status: .succeeded
                 ))
 
-                if request.isConnect {
-                    print("Siminator proxy CONNECT \(request.host):\(request.port)")
-                    let response = context.channel.allocator.buffer(
-                        string: "HTTP/1.1 200 Connection Established\r\n\r\n"
-                    )
-                    context.writeAndFlush(self.wrapOutboundOut(response), promise: nil)
-
-                    let tunneledBytes = request.tunneledBodyBuffer(allocator: context.channel.allocator)
-                    if tunneledBytes.readableBytes > 0 {
-                        upstreamChannel.writeAndFlush(tunneledBytes, promise: nil)
-                    }
-                } else {
-                    print("Siminator proxy HTTP \(request.method) \(request.host):\(request.port) \(request.displayPath)")
-                    let forwardedRequest = request.forwardedBuffer(allocator: context.channel.allocator)
-                    upstreamChannel.writeAndFlush(forwardedRequest, promise: nil)
-                }
+                print("Siminator proxy HTTP \(request.method) \(request.host):\(request.port) \(request.displayPath)")
+                let forwardedRequest = request.forwardedBuffer(allocator: context.channel.allocator)
+                upstreamChannel.writeAndFlush(forwardedRequest, promise: nil)
 
             case let .failure(error):
                 print("Siminator proxy failed to connect to \(request.host):\(request.port): \(error)")
                 self.emit(.statusChanged(
                     id: requestID,
-                    status: .failed,
-                    completedAt: Date()
+                    status: .failed
                 ))
                 self.writeBadGatewayAndClose(context: context)
             }
