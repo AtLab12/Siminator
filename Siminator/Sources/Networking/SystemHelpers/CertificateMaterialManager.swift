@@ -54,12 +54,11 @@ actor CertificateMaterialManager {
     }
 
     func deleteCertificateMaterial() throws {
-        let directoryURL = try certificateDirectoryURL()
+        try trustManager.deleteCertificateFromKeychain(Constants.certificateCommonName)
 
-        let contents = try FileManager.default.contentsOfDirectory(
-            at: directoryURL,
-            includingPropertiesForKeys: nil
-        )
+        // Delete from file storage, both leaf and root cert.
+        let directoryURL = try certificateDirectoryURL()
+        let contents = try FileManager.default.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil)
 
         for itemURL in contents {
             try? FileManager.default.removeItem(at: itemURL)
