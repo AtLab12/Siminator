@@ -4,12 +4,13 @@ import NIOSSL
 actor CertificateMaterialManager {
     private enum Constants {
         static let certificateCommonName = "Siminator Root CA"
-        static let certificateFilename = "siminator-root-ca.pem"
+        static let certificateFilename = "siminator-root-ca.cer"
         static let privateKeyFilename = "siminator-root-ca-key.pem"
         static let hostsDirectoryName = "Hosts"
     }
 
     private var serverTLSContexts: [String: NIOSSLContext] = [:]
+    private var trustManager: AuthorizedCertificateTrustConfigurator = .init()
 
     func certificateState() throws -> CertificateMaterialState {
         let material = try certificateMaterialURLs()
@@ -26,7 +27,7 @@ actor CertificateMaterialManager {
         )
     }
 
-    func ensureCertificateMaterialExists() throws -> CertificateMaterial {
+    func ensureCertificateMaterialExists() async throws -> CertificateMaterial {
         let material = try certificateMaterialURLs()
         let certificateURL = material.certificateURL
         let privateKeyURL = material.privateKeyURL
@@ -42,6 +43,7 @@ actor CertificateMaterialManager {
 
         do {
             try generateRootCA(certificateURL: certificateURL, privateKeyURL: privateKeyURL)
+            try trustManager.saveCertificateToKeyChain(certUrl: certificateURL)
         } catch {
             try? FileManager.default.removeItem(at: certificateURL)
             try? FileManager.default.removeItem(at: privateKeyURL)
@@ -66,14 +68,14 @@ actor CertificateMaterialManager {
         serverTLSContexts.removeAll(keepingCapacity: true)
     }
 
-    func serverTLSContext(for host: String) throws -> NIOSSLContext {
+    func serverTLSContext(for host: String) async throws -> NIOSSLContext {
         let normalizedHost = host.lowercased()
 
         if let context = serverTLSContexts[normalizedHost] {
             return context
         }
 
-        let leafMaterial = try ensureLeafCertificateExists(for: normalizedHost)
+        let leafMaterial = try await ensureLeafCertificateExists(for: normalizedHost)
         let certificateChain = try NIOSSLCertificate.fromPEMFile(leafMaterial.certificateURL.path)
         let privateKey = try NIOSSLPrivateKey(file: leafMaterial.privateKeyURL.path, format: .pem)
 
@@ -116,6 +118,7 @@ actor CertificateMaterialManager {
                 "-sha256",
                 "-days", "3650",
                 "-out", certificateURL.path,
+                "-outform", "DER",
                 "-subj", "/CN=\(Constants.certificateCommonName)/O=Siminator/OU=HTTPS Inspection",
                 "-addext", "basicConstraints=critical,CA:TRUE",
                 "-addext", "keyUsage=critical,keyCertSign",
@@ -150,8 +153,8 @@ actor CertificateMaterialManager {
         )
     }
 
-    private func ensureLeafCertificateExists(for host: String) throws -> CertificateMaterial {
-        let rootMaterial = try ensureCertificateMaterialExists()
+    private func ensureLeafCertificateExists(for host: String) async throws -> CertificateMaterial {
+        let rootMaterial = try await ensureCertificateMaterialExists()
         let leafMaterial = try leafCertificateMaterialURLs(for: host)
         let certificateURL = leafMaterial.certificateURL
         let privateKeyURL = leafMaterial.privateKeyURL
@@ -234,6 +237,7 @@ actor CertificateMaterialManager {
                 "-req",
                 "-in", csrURL.path,
                 "-CA", rootMaterial.certificateURL.path,
+                "-CAform", "DER",
                 "-CAkey", rootMaterial.privateKeyURL.path,
                 "-CAcreateserial",
                 "-out", certificateURL.path,
