@@ -13,6 +13,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private let state = NetworkingSidebarVM()
     private var simulatorFrame: CGRect?
     private var simulatorWindowNumber: Int?
+    private var simulatorUDID: String?
     private var targetFrame: CGRect?
     private var movementTimer: Timer?
     private var isEnabled = false
@@ -31,6 +32,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private let systemProxySettingsManager = SystemProxySettingsManager()
     private var proxyControlTask: Task<Void, Never>?
     private var certificateGenerationTask: Task<Void, Never>?
+    private var certInstallTask: Task<Void, Never>?
     private var captureOperationID = 0
     var onEnabledChanged: (@MainActor (Bool) -> Void)?
     var onPanelInteraction: (@MainActor () -> Void)?
@@ -72,6 +74,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                 },
                 onCertificateGenerationRequested: { [weak self] in
                     self?.requestCertificateGeneration()
+                },
+                onInstallCertificateOnSim: { [weak self] in
+                    self?.installCertificateOnSelectedSimulator()
                 }
             )
             .environment(appIconCache)
@@ -100,9 +105,15 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         }
     }
 
-    func update(simulatorFrame: CGRect?, simulatorWindowNumber: Int?) {
+    func update(simulatorFrame: CGRect?, simulatorWindowNumber: Int?, simulatorUDID: String?) {
         self.simulatorFrame = simulatorFrame
         self.simulatorWindowNumber = simulatorWindowNumber
+        if self.simulatorUDID != simulatorUDID {
+            self.simulatorUDID = simulatorUDID
+
+            // TODO: - This will have to be fetched dynamically
+            state.isCertificateOnSelectedSimulator = false
+        }
 
         guard isEnabled else { return }
 
@@ -432,9 +443,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                 try await certificateMaterialManager.deleteCertificateMaterial()
                 state.isCertificateGenerated = false
                 state.isCertificateGenerating = false
-                state.certificateStatus = "Certificate not generated"
+                state.certificateStatus = .requiresGenerating
             } catch {
-                state.certificateStatus = "Certificate deletion failed: \(error.localizedDescription)"
+                state.certificateStatus = .generationFailed
             }
         }
     }
@@ -444,9 +455,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         state.isCertificateGenerated = certificateState.isGenerated
 
         if certificateState.isGenerated {
-            state.certificateStatus = "Generated: \(certificateState.certificateURL?.lastPathComponent ?? "Siminator Root CA")"
+            state.certificateStatus = .generated
         } else {
-            state.certificateStatus = "Certificate not generated"
+            state.certificateStatus = .requiresGenerating
         }
     }
 
@@ -490,22 +501,22 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     @discardableResult
     private func performCertificateGenerationFlow() async -> Bool {
         guard confirmCertificateGeneration() else {
-            state.certificateStatus = "Certificate generation cancelled"
+            state.certificateStatus = .requiresGenerating
             return false
         }
 
         state.isCertificateGenerating = true
-        state.certificateStatus = "Generating certificate files"
+        state.certificateStatus = .generating
 
         do {
             let material = try await certificateMaterialManager.ensureCertificateMaterialExists()
             state.isCertificateGenerated = true
-            state.certificateStatus = "Generated: \(material.certificateURL.lastPathComponent)"
+            state.certificateStatus = .generated
             state.isCertificateGenerating = false
             return true
         } catch {
             state.isCertificateGenerated = false
-            state.certificateStatus = "Certificate generation failed: \(error.localizedDescription)"
+            state.certificateStatus = .generationFailed
             state.isCertificateGenerating = false
             return false
         }
@@ -533,6 +544,33 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         NSApp.activate()
         return alert.runModal() == .alertFirstButtonReturn
+    }
+}
+
+extension NetworkingSidebarController {
+    private func installCertificateOnSelectedSimulator() {
+        guard certInstallTask == nil else { return }
+
+        guard let simulatorUDID else {
+            state.isCertificateOnSelectedSimulator = false
+            return
+        }
+
+        state.isInstallingOnSimulator = true
+
+        certInstallTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                try await certificateMaterialManager.installRootCertToSimulator(udid: simulatorUDID)
+                state.isCertificateOnSelectedSimulator = true
+            } catch {
+                state.isCertificateOnSelectedSimulator = false
+            }
+
+            certInstallTask = nil
+            state.isInstallingOnSimulator = false
+        }
     }
 }
 

@@ -13,7 +13,9 @@ final class NetworkingSidebarVM {
     var proxyRoutingStatus = "System proxy disabled"
     var isCertificateGenerating = false
     var isCertificateGenerated = false
-    var certificateStatus = "Certificate not generated"
+    var isCertificateOnSelectedSimulator = false
+    var isInstallingOnSimulator = false
+    var certificateStatus: CertificateStatus = .requiresGenerating
     let sessionViewModel: SessionLogVM
 
     var clearSessionButtonVisible: Bool {
@@ -34,5 +36,14 @@ final class NetworkingSidebarVM {
 
     func beginNewSession() {
         sessionViewModel.beginNewSession()
+    }
+
+    enum CertificateStatus: String {
+        case generating = "Generation in progress"
+        case generated = "Certificate generated"
+        case installed = "Certificate installed"
+        case requiresInstalling = "Please install the certificate"
+        case requiresGenerating = "Please generate the certificate"
+        case generationFailed = "Generation failed"
     }
 }

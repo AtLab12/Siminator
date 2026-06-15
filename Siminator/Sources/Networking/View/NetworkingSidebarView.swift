@@ -7,6 +7,7 @@ struct NetworkingSidebarView: View {
     let onDetachedChanged: @MainActor (Bool) -> Void
     let onCaptureToggled: @MainActor () -> Void
     let onCertificateGenerationRequested: @MainActor () -> Void
+    let onInstallCertificateOnSim: @MainActor () -> Void
 
     var body: some View {
         VStack(spacing: 14) {
@@ -69,8 +70,9 @@ struct NetworkingSidebarView: View {
 
     var certificateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // Root macOS certificate
             if viewModel.isCertificateGenerated {
-                Label(viewModel.certificateStatus, systemImage: "checkmark.shield.fill")
+                Label(viewModel.certificateStatus.rawValue, systemImage: "checkmark.shield.fill")
                     .font(.callout)
                     .foregroundStyle(.green)
                     .lineLimit(2)
@@ -88,10 +90,28 @@ struct NetworkingSidebarView: View {
                         .controlSize(.small)
                 }
 
-                Text(viewModel.certificateStatus)
+                Text(viewModel.certificateStatus.rawValue)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+            }
+
+            if viewModel.isCertificateGenerated {
+                // Simulator certificate
+                if viewModel.isCertificateOnSelectedSimulator {
+                    Label("Certificate installed on simulator", systemImage: "iphone")
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                        .lineLimit(2)
+                } else {
+                    Button {
+                        onInstallCertificateOnSim()
+                    } label: {
+                        Label("Install certificate on simulator", systemImage: "iphone")
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(viewModel.isInstallingOnSimulator)
+                }
             }
         }
     }

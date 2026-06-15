@@ -285,6 +285,20 @@ actor CertificateMaterialManager {
         host.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil
             || host.contains(":")
     }
+
+    func installRootCertToSimulator(udid: String) throws {
+        let certificateMaterial = try certificateMaterialURLs()
+
+        _ = try ExecutableHelper().runExecutable(
+            "/usr/bin/xcrun",
+            arguments: [
+                "simctl",
+                "keychain",
+                udid,
+                "add-root-cert", certificateMaterial.certificateURL.path,
+            ]
+        )
+    }
 }
 
 struct CertificateMaterial: Sendable {
