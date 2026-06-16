@@ -15,8 +15,8 @@ import PackageDescription
 let package = Package(
     name: "Siminator",
     dependencies: [
-        // Add your own dependencies here:
-        // .package(url: "https://github.com/Alamofire/Alamofire", from: "5.0.0"),
-        // You can read more about dependencies here: https://docs.tuist.io/documentation/tuist/dependencies
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.100.0"),
+        .package(url: "https://github.com/apple/swift-nio-http2.git", from: "1.42.0"),
+        .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.1"),
     ]
 )
