@@ -10,10 +10,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     private let panel: SiminatorPanel
-    private let state = NetworkingSidebarVM()
+    private lazy var state = NetworkingSidebarVM(installCertOnSimWithUDID: { [weak self] udid in
+        self?.installCertificateOnSelectedSimulator(udid: udid)
+    })
     private var simulatorFrame: CGRect?
     private var simulatorWindowNumber: Int?
-    private var simulatorUDID: String?
     private var targetFrame: CGRect?
     private var movementTimer: Timer?
     private var isEnabled = false
@@ -76,7 +77,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
                     self?.requestCertificateGeneration()
                 },
                 onInstallCertificateOnSim: { [weak self] in
-                    self?.installCertificateOnSelectedSimulator()
+                    self?.selectSimulator()
                 }
             )
             .environment(appIconCache)
@@ -105,15 +106,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         }
     }
 
-    func update(simulatorFrame: CGRect?, simulatorWindowNumber: Int?, simulatorUDID: String?) {
+    func update(simulatorFrame: CGRect?, simulatorWindowNumber: Int?) {
         self.simulatorFrame = simulatorFrame
         self.simulatorWindowNumber = simulatorWindowNumber
-        if self.simulatorUDID != simulatorUDID {
-            self.simulatorUDID = simulatorUDID
-
-            // TODO: - This will have to be fetched dynamically
-            state.isCertificateOnSelectedSimulator = false
-        }
 
         guard isEnabled else { return }
 
@@ -509,7 +504,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         state.certificateStatus = .generating
 
         do {
-            let material = try await certificateMaterialManager.ensureCertificateMaterialExists()
+            _ = try await certificateMaterialManager.ensureCertificateMaterialExists()
             state.isCertificateGenerated = true
             state.certificateStatus = .generated
             state.isCertificateGenerating = false
@@ -548,28 +543,32 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 }
 
 extension NetworkingSidebarController {
-    private func installCertificateOnSelectedSimulator() {
-        guard certInstallTask == nil else { return }
-
-        guard let simulatorUDID else {
-            state.isCertificateOnSelectedSimulator = false
-            return
-        }
-
+    private func selectSimulator() {
+        state.isSimulatorSelectionPopoverPresented = true
         state.isInstallingOnSimulator = true
+
+        do {
+            state.bootedDevices = try certificateMaterialManager.getBootedSimulators()
+            state.isInstallingOnSimulator = false
+        } catch {
+            state.isInstallingOnSimulator = false
+        }
+    }
+
+    private func installCertificateOnSelectedSimulator(udid: String) {
+        guard certInstallTask == nil else { return }
 
         certInstallTask = Task { [weak self] in
             guard let self else { return }
 
             do {
-                try await certificateMaterialManager.installRootCertToSimulator(udid: simulatorUDID)
-                state.isCertificateOnSelectedSimulator = true
+                try await certificateMaterialManager.installRootCertToSimulator(udid: udid)
+                state.processingSim?.requiresReboot = true
             } catch {
-                state.isCertificateOnSelectedSimulator = false
+                print(error)
             }
 
             certInstallTask = nil
-            state.isInstallingOnSimulator = false
         }
     }
 }

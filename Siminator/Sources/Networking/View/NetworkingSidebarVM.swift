@@ -13,17 +13,23 @@ final class NetworkingSidebarVM {
     var proxyRoutingStatus = "System proxy disabled"
     var isCertificateGenerating = false
     var isCertificateGenerated = false
-    var isCertificateOnSelectedSimulator = false
     var isInstallingOnSimulator = false
+    var isSimulatorSelectionPopoverPresented = false
     var certificateStatus: CertificateStatus = .requiresGenerating
     let sessionViewModel: SessionLogVM
+
+    var bootedDevices: [SimctlDevice] = []
+    var processingSim: ProcessingSim?
+
+    var installCertOnSimWithUDID: @MainActor (String) -> Void
 
     var clearSessionButtonVisible: Bool {
         !sessionViewModel.visibleRequests.isEmpty
     }
 
-    init() {
+    init(installCertOnSimWithUDID: @MainActor @escaping (String) -> Void) {
         sessionViewModel = .init()
+        self.installCertOnSimWithUDID = installCertOnSimWithUDID
     }
 
     func handleRequestEvent(_ event: CapturedNetworkRequestEvent) {
@@ -38,6 +44,10 @@ final class NetworkingSidebarVM {
         sessionViewModel.beginNewSession()
     }
 
+    func simulatorSelectedWithId(_ udid: String) {
+        processingSim = .init(udid: udid)
+    }
+
     enum CertificateStatus: String {
         case generating = "Generation in progress"
         case generated = "Certificate generated"
@@ -45,5 +55,10 @@ final class NetworkingSidebarVM {
         case requiresInstalling = "Please install the certificate"
         case requiresGenerating = "Please generate the certificate"
         case generationFailed = "Generation failed"
+    }
+
+    struct ProcessingSim {
+        let udid: String
+        var requiresReboot: Bool = false
     }
 }

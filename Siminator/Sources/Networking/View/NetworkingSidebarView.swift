@@ -76,11 +76,13 @@ struct NetworkingSidebarView: View {
                     .font(.callout)
                     .foregroundStyle(.green)
                     .lineLimit(2)
+                    .contentTransition(.symbolEffect(.replace))
             } else {
                 Button {
                     onCertificateGenerationRequested()
                 } label: {
                     Label("Generate Certificate", systemImage: "shield")
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(.bordered)
                 .disabled(viewModel.isCertificateGenerating)
@@ -96,22 +98,15 @@ struct NetworkingSidebarView: View {
                     .lineLimit(2)
             }
 
-            if viewModel.isCertificateGenerated {
-                // Simulator certificate
-                if viewModel.isCertificateOnSelectedSimulator {
-                    Label("Certificate installed on simulator", systemImage: "iphone")
-                        .font(.callout)
-                        .foregroundStyle(.green)
-                        .lineLimit(2)
-                } else {
-                    Button {
-                        onInstallCertificateOnSim()
-                    } label: {
-                        Label("Install certificate on simulator", systemImage: "iphone")
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.isInstallingOnSimulator)
-                }
+            Button {
+                onInstallCertificateOnSim()
+            } label: {
+                Label("Install certificate on simulator", systemImage: "iphone")
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.isInstallingOnSimulator)
+            .popover(isPresented: $viewModel.isSimulatorSelectionPopoverPresented) {
+                simulatorSelection
             }
         }
     }
@@ -164,6 +159,45 @@ struct NetworkingSidebarView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(3)
         }
+    }
+    
+    var simulatorSelection: some View {
+        Group {
+            if viewModel.bootedDevices.isEmpty {
+                VStack {
+                    ProgressView()
+                    Text("Loading booted devices...")
+                }
+            } else {
+                VStack(alignment: .leading) {
+                    Text("Select simulator:")
+                    Divider()
+                    ForEach(viewModel.bootedDevices) { device in
+                        HStack {
+                            Button {
+                                viewModel.simulatorSelectedWithId(device.udid)
+                            } label: {
+                                Text(device.name)
+                            }
+                            if let sim = viewModel.processingSim {
+                                if device.udid == sim.udid {
+                                    ProgressView()
+                                        .scaleEffect(0.5)
+                                } else if sim.requiresReboot {
+                                    Button {
+                                        // install on simulator action here
+                                    } label: {
+                                        Text("Reboot")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                .presentationSizing(.fitted)
+            }
+        }
+        .padding()
     }
 
     private var sessionSection: some View {

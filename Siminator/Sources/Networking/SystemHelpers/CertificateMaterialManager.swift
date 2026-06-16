@@ -299,6 +299,21 @@ actor CertificateMaterialManager {
             ]
         )
     }
+    
+    @MainActor func getBootedSimulators() throws -> [SimctlDevice] {
+        guard
+            let output = try? ExecutableHelper().runExecutable(
+                "/usr/bin/xcrun",
+                arguments: ["simctl", "list", "devices", "booted", "--json"]
+            ),
+            let data = output.data(using: .utf8),
+            let deviceList = try? JSONDecoder().decode(SimctlDeviceList.self, from: data)
+        else {
+            return []
+        }
+        
+        return deviceList.bootedDevices
+    }
 }
 
 struct CertificateMaterial: Sendable {

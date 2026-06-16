@@ -4,7 +4,6 @@ import ApplicationServices
 struct SimulatorWindowSnapshot: Sendable {
     let frame: CGRect
     let windowNumber: Int
-    let simulatorUDID: String?
 }
 
 enum SiminatorConst {
@@ -19,9 +18,6 @@ final class SimTrackingEngine {
     private var simulatorPID: pid_t?
     private var pollingTimer: Timer?
     private var lastPublishedSnapshot: SimulatorWindowSnapshot?
-    private var lastResolvedSimulatorWindowNumber: Int?
-    private var lastResolvedSimulatorWindowName: String?
-    private var lastResolvedSimulatorUDID: String?
     private var didPublishMissingSimulator = false
     private var didRegisterWorkspaceObservers = false
 
@@ -65,14 +61,9 @@ final class SimTrackingEngine {
     private func attachToSimulatorIfRunning() {
         guard let app = findSimulatorApplication() else {
             simulatorPID = nil
-            resetResolvedSimulatorCache()
             stopPolling()
             publishSimulatorWindow(nil)
             return
-        }
-
-        if simulatorPID != app.processIdentifier {
-            resetResolvedSimulatorCache()
         }
 
         simulatorPID = app.processIdentifier
@@ -112,19 +103,9 @@ final class SimTrackingEngine {
                 continue
             }
 
-            print(window[kCGWindowName as String] as? String)
-            
-//            let windowName = windowTitle(for: processIdentifier, matching: bounds)
-
-            
-            
             return SimulatorWindowSnapshot(
                 frame: convertCGTopLeftToAppKitBottomLeft(bounds),
-                windowNumber: windowNumber,
-                simulatorUDID: simulatorUDID(
-                    forWindowNumber: windowNumber,
-                    windowName: "windowName"
-                )
+                windowNumber: windowNumber
             )
         }
 
@@ -163,86 +144,10 @@ final class SimTrackingEngine {
 
         if let lastPublishedSnapshot,
            lastPublishedSnapshot.windowNumber == snapshot.windowNumber,
-           lastPublishedSnapshot.frame.isClose(to: snapshot.frame),
-           lastPublishedSnapshot.simulatorUDID == snapshot.simulatorUDID { return }
+           lastPublishedSnapshot.frame.isClose(to: snapshot.frame) { return }
 
         lastPublishedSnapshot = snapshot
         onSimulatorFrameChanged?(snapshot)
-    }
-
-    private func simulatorUDID(
-        forWindowNumber windowNumber: Int,
-        windowName: String?
-    ) -> String? {
-        if lastResolvedSimulatorWindowNumber == windowNumber,
-           lastResolvedSimulatorWindowName == windowName
-        {
-            return lastResolvedSimulatorUDID
-        }
-
-        let udid = bootedSimulatorUDID(matchingWindowName: windowName)
-        lastResolvedSimulatorWindowNumber = windowNumber
-        lastResolvedSimulatorWindowName = windowName
-        lastResolvedSimulatorUDID = udid
-        return udid
-    }
-
-    private func resetResolvedSimulatorCache() {
-        lastResolvedSimulatorWindowNumber = nil
-        lastResolvedSimulatorWindowName = nil
-        lastResolvedSimulatorUDID = nil
-    }
-
-    private func bootedSimulatorUDID(matchingWindowName windowName: String?) -> String? {
-        guard
-            let output = try? ExecutableHelper().runExecutable(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "booted", "--json"]
-            ),
-            let data = output.data(using: .utf8),
-            let deviceList = try? JSONDecoder().decode(SimctlDeviceList.self, from: data)
-        else {
-            return nil
-        }
-
-        print(lastResolvedSimulatorWindowName)
-
-        let bootedDevices = deviceList.bootedDevices
-
-        if let windowName, !windowName.isEmpty {
-            if let device = bootedDevice(matchingWindowName: windowName, in: bootedDevices) {
-                return device.udid
-            }
-        }
-
-        // If there is only one booted device, the visible Simulator window can
-        // only belong to that device. Multiple booted devices must be resolved
-        // by the attached window name above.
-        return bootedDevices.count == 1 ? bootedDevices[0].udid : nil
-    }
-
-    private func bootedDevice(
-        matchingWindowName windowName: String,
-        in bootedDevices: [SimctlDevice]
-    ) -> SimctlDevice? {
-        let exactMatches = bootedDevices.filter { $0.name == windowName }
-        if exactMatches.count == 1 {
-            return exactMatches[0]
-        }
-
-        let containedMatches = bootedDevices
-            .filter { windowName.localizedCaseInsensitiveContains($0.name) }
-            .sorted { $0.name.count > $1.name.count }
-
-        guard let bestMatch = containedMatches.first else {
-            return nil
-        }
-
-        let equallySpecificMatches = containedMatches.filter {
-            $0.name.count == bestMatch.name.count
-        }
-
-        return equallySpecificMatches.count == 1 ? bestMatch : nil
     }
 
     // Minor helper to keep code readable
@@ -299,20 +204,6 @@ final class SimTrackingEngine {
             .max { $0.overlapArea < $1.overlapArea }
             .map { (screen: $0.screen, displayBounds: $0.displayBounds) }
     }
-}
-
-private struct SimctlDeviceList: Decodable {
-    let devices: [String: [SimctlDevice]]
-
-    var bootedDevices: [SimctlDevice] {
-        devices.values.flatMap { $0 }.filter { $0.state == "Booted" }
-    }
-}
-
-private struct SimctlDevice: Decodable {
-    let name: String
-    let udid: String
-    let state: String
 }
 
 // Filters out tiny CoreGraphics frame noise so unchanged Simulator positions. Do not publish redundant panel updates.

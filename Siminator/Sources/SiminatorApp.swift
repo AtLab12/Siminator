@@ -75,15 +75,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
                 self.networkingSidebarController.update(
                     simulatorFrame: frame,
-                    simulatorWindowNumber: snapshot.windowNumber,
-                    simulatorUDID: snapshot.simulatorUDID
+                    simulatorWindowNumber: snapshot.windowNumber
                 )
             } else {
                 self.panelController.hide()
                 self.networkingSidebarController.update(
                     simulatorFrame: nil,
-                    simulatorWindowNumber: nil,
-                    simulatorUDID: nil
+                    simulatorWindowNumber: nil
                 )
             }
         }
