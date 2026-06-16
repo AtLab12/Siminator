@@ -18,6 +18,10 @@
 
 ## Overview
 
+** I built an quick mvp that quicly became a spaghetti. It works very well so I decided, before I dive deeper to step back and rethink the architecture of this solution. **
+
+This app will be base on the TCA architecture because of it's composability, reliablity and ease of use. Bundled together with swift dependency library. Both originate from the point free comunity and are highly respected. 
+
 Siminator is an open-source macOS tool that lives alongside the iOS Simulator. It's a passion project and my attempt to get around never ending paywalls. 
 
 The idea is simple: **one focused workspace for debugging, capturing, and shaping how your app behaves in the Simulator.**
