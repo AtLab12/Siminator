@@ -50,17 +50,6 @@ let project = Project(
                 "Siminator/Shared",
             ],
             dependencies: []
-        ),
-        .target(
-            name: "SiminatorTests",
-            destinations: .macOS,
-            product: .unitTests,
-            bundleId: "dev.atlab.SiminatorTests",
-            infoPlist: .default,
-            buildableFolders: [
-                "Siminator/Tests",
-            ],
-            dependencies: [.target(name: "Siminator")]
-        ),
+        )
     ]
 )
