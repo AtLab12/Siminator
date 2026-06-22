@@ -5,7 +5,6 @@ import SwiftUI
 ///
 /// `Image` values are created once per bundle identifier from a pre-downsampled
 /// `CGImage`, so request rows pay only a dictionary lookup at render time.
-@MainActor
 @Observable
 final class AppIconCache {
     private struct Style {

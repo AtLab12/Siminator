@@ -1,5 +1,23 @@
 import AppKit
 import SwiftUI
+import ComposableArchitecture
+
+struct NetworkingFeatureView: View {
+    let store: StoreOf<NetworkingFeature>
+    
+    var body: some View {
+        VStack {
+            Text("Networking contents")
+        }
+        .padding(.top, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(.regularMaterial)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+}
 
 struct NetworkingSidebarView: View {
     @Bindable var viewModel: NetworkingSidebarVM

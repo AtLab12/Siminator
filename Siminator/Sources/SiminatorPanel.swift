@@ -7,9 +7,8 @@
 
 import AppKit
 
-@MainActor
 final class SiminatorPanel: NSPanel {
-    var onUserInteraction: (@MainActor () -> Void)?
+    var onUserInteraction: (() -> Void)?
 
     // Overriden to enable textfield interaction. Both becomeKey and becomeMain
     override var canBecomeKey: Bool {

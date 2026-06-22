@@ -189,8 +189,8 @@ actor AppIconStore {
     }
 
     private func publish(_ image: CGImage, bundleID: String) async {
-        await MainActor.run { [cache] in
-            cache.setIcon(image, for: bundleID)
-        }
+//        await MainActor.run { [cache] in
+//            cache.setIcon(image, for: bundleID)
+//        }
     }
 }

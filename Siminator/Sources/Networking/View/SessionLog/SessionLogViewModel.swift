@@ -14,7 +14,6 @@ struct SessionLogAppFilter: Identifiable, Hashable, Sendable {
     }
 }
 
-@MainActor
 @Observable
 final class SessionLogVM {
     private enum RequestBuffer {

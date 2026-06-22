@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import SwiftUI
+import ComposableArchitecture
 
 @MainActor
 final class SimTrackingController {
@@ -9,7 +10,6 @@ final class SimTrackingController {
     }
 
     private let panel: SiminatorPanel
-    private let toolsState = ToolsHomeState()
     private var targetFrame: CGRect?
     private var simulatorWindowNumber: Int?
     private var movementTimer: Timer?
@@ -23,7 +23,7 @@ final class SimTrackingController {
             backing: .buffered,
             defer: false
         )
-
+        
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
@@ -34,28 +34,19 @@ final class SimTrackingController {
             .canJoinAllSpaces,
             .fullScreenAuxiliary
         ]
-
-        let hostingView = NSHostingView(
-            rootView: ToolsHomeView(
-                state: toolsState,
-                onNetworkingEnabledChanged: { [weak self] isEnabled in
-                    self?.onNetworkingEnabledChanged?(isEnabled)
-                }
-            )
-                .frame(width: Layout.size.width, height: Layout.size.height)
-        )
+        
+        let hostingView = NSHostingView(rootView: ToolsView(store: SiminatorApp.store.scope(
+            \.tools,
+             action: \.tools
+        )).frame(width: Layout.size.width, height: Layout.size.height))
+        
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
-
+        
         panel.contentView = hostingView
         panel.onUserInteraction = { [weak self] in
             self?.onPanelInteraction?()
         }
-    }
-
-    func setNetworkingEnabled(_ isEnabled: Bool) {
-        guard toolsState.showNetworkingSidebar != isEnabled else { return }
-        toolsState.showNetworkingSidebar = isEnabled
     }
 
     func show() {

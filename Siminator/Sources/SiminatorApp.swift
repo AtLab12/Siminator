@@ -1,17 +1,22 @@
 import SwiftUI
+import ComposableArchitecture
 
 @main
 struct SiminatorApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
+    
+    static let store = Store(initialState: SiminatorController.State()) {
+        SiminatorController()
+    }
+    
     var body: some Scene {
         MenuBarExtra("Siminator", systemImage: "star") {
             Button("Quit") {
-                NSApplication.shared.terminate(nil)
+                SiminatorApp.store.send(.extraMenu(.quit))
             }
 
             Button {
-                appDelegate.refreshCertificate()
+                SiminatorApp.store.send(.extraMenu(.refreshCertificate))
             } label: {
                 Label {
                     Text("Refresh Certificate")
@@ -21,7 +26,7 @@ struct SiminatorApp: App {
             }
 
             Button {
-                appDelegate.deleteCertificates()
+                SiminatorApp.store.send(.extraMenu(.deleteCertificates))
             } label: {
                 Label {
                     Text("Delete Certificates")
@@ -29,10 +34,6 @@ struct SiminatorApp: App {
                     Image(systemName: "trash")
                 }
             }
-        }
-
-        Settings {
-            EmptyView()
         }
     }
 }
@@ -46,21 +47,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        panelController.onNetworkingEnabledChanged = { [weak self] isEnabled in
-            self?.networkingSidebarController.setEnabled(isEnabled)
-        }
+        networkingSidebarController.connect(
+            store: SiminatorApp.store.scope(\.networking, action: \.networking)
+        )
 
-        networkingSidebarController.onEnabledChanged = { [weak self] isEnabled in
-            self?.panelController.setNetworkingEnabled(isEnabled)
-        }
+//        panelController.onNetworkingEnabledChanged = { [weak self] isEnabled in
+//            self?.networkingSidebarController.setEnabled(isEnabled)
+//        }
+//
+//        networkingSidebarController.onEnabledChanged = { [weak self] isEnabled in
+//            self?.panelController.setNetworkingEnabled(isEnabled)
+//        }
 
         panelController.onPanelInteraction = { [weak self] in
             self?.bringSimulatorWorkspaceToFront()
         }
 
-        networkingSidebarController.onPanelInteraction = { [weak self] in
-            self?.bringSimulatorWorkspaceToFront()
-        }
+//        networkingSidebarController.onPanelInteraction = { [weak self] in
+//            self?.bringSimulatorWorkspaceToFront()
+//        }
 
         tracker.onSimulatorFrameChanged = { [weak self] snapshot in
             guard let self else { return }
@@ -110,14 +115,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func bringSiminatorPanelsToFront() {
         panelController.bringToFrontWithSimulator()
-        networkingSidebarController.bringToFrontWithSimulator()
-    }
-
-    func refreshCertificate() {
-        networkingSidebarController.refreshCertificateState()
-    }
-
-    func deleteCertificates() {
-        networkingSidebarController.deleteCertificates()
+//        networkingSidebarController.bringToFrontWithSimulator()
     }
 }

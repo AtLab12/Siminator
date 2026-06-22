@@ -1,8 +1,44 @@
 import Foundation
+import ComposableArchitecture
+
+@Reducer
+struct NetworkingFeature {
+    
+    @ObservableState
+    struct State {
+        var isDetached: Bool = false
+
+        @ObservationStateIgnored
+        var sidebarController: NetworkingSidebarController?
+    }
+    
+    enum Action {
+        case connectController(NetworkingSidebarController)
+        case networkingWindowToggled(Bool)
+    }
+    
+    
+    var body: some ReducerOf<Self> {
+        Reduce { state, action in
+            switch action {
+            case .connectController(let controller):
+                state.sidebarController = controller
+                return .none
+            case .networkingWindowToggled(let value):
+                return .run { [controller = state.sidebarController] send in
+                    await MainActor.run {
+                        controller?.setEnabled(value)
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 
 /// Closely works with NetworkingSidebarController
 /// Exists as a bridge between underlying proxy logic and view state
-@MainActor
 @Observable
 final class NetworkingSidebarVM {
     var isDetached = false
