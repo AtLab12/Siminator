@@ -6,8 +6,9 @@ struct NetworkingFeature {
     
     @ObservableState
     struct State {
-        var isDetached: Bool = false
 
+        var isDetached: Bool = false
+        
         @ObservationStateIgnored
         var sidebarController: NetworkingSidebarController?
     }
@@ -15,6 +16,7 @@ struct NetworkingFeature {
     enum Action {
         case connectController(NetworkingSidebarController)
         case networkingWindowToggled(Bool)
+        case detachStatusToggled
     }
     
     
@@ -29,6 +31,14 @@ struct NetworkingFeature {
                     await MainActor.run {
                         controller?.setEnabled(value)
                     }
+                }
+            case .detachStatusToggled:
+                state.isDetached.toggle()
+                return .run { [
+                    controller = state.sidebarController,
+                    isDetached = state.isDetached
+                ] send in
+                    await controller?.setDetached(isDetached)
                 }
             }
         }

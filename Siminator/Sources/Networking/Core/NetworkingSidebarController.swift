@@ -19,9 +19,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var movementTimer: Timer?
     private var detachedFrame: CGRect?
     private var shouldOrderOutAfterAnimation = false
-    private let appIconCache = AppIconCache()
+//    private let appIconCache = AppIconCache()
+    private(set) var isDetached: Bool = false
+    
 //    private lazy var appIconStore = AppIconStore(cache: appIconCache)
-    private let certificateMaterialManager = CertificateMaterialManager()
+//    private let certificateMaterialManager = CertificateMaterialManager()
 //    private lazy var proxyServer = LocalHTTPProxyServer(
 //        appIconStore: appIconStore,
 //        certificateMaterialManager: certificateMaterialManager
@@ -29,12 +31,12 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 ////        self?.state.handleRequestEvent(event)
 //    }
 
-    private let systemProxySettingsManager = SystemProxySettingsManager()
-    private var proxyControlTask: Task<Void, Never>?
-    private var certificateGenerationTask: Task<Void, Never>?
-    private var certInstallTask: Task<Void, Never>?
-    private var captureOperationID = 0
-    var onEnabledChanged: ((Bool) -> Void)?
+//    private let systemProxySettingsManager = SystemProxySettingsManager()
+//    private var proxyControlTask: Task<Void, Never>?
+//    private var certificateGenerationTask: Task<Void, Never>?
+//    private var certInstallTask: Task<Void, Never>?
+//    private var captureOperationID = 0
+//    var onEnabledChanged: ((Bool) -> Void)?
     var onPanelInteraction: (() -> Void)?
 
     @MainActor
@@ -68,11 +70,11 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
     
     private func configureDockedPanel() {
-//        panel.onUserInteraction = { [weak self] in
-//            if !(self?.state.isDetached ?? true) {
-//                self?.onPanelInteraction?()
-//            }
-//        }
+        panel.onUserInteraction = { [weak self] in
+            if !(self?.isDetached ?? true) {
+                self?.onPanelInteraction?()
+            }
+        }
         
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
@@ -112,7 +114,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
     
     private func orderBelowSimulatorWindow() {
-//        guard !state.isDetached else { return }
+        guard !isDetached else { return }
         guard let simulatorWindowNumber, panel.isVisible else { return }
         panel.order(.below, relativeTo: simulatorWindowNumber)
     }
@@ -161,31 +163,31 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         guard isNetworkingEnabled else { return }
 
-//        if state.isDetached {
-//            if !panel.isVisible {
-//                showDetachedWindow()
-//            }
-//
-//            return
-//        }
-//
-//        guard simulatorFrame != nil else {
-//            hideImmediately()
-//            return
-//        }
-//
+        if isDetached {
+            if !panel.isVisible {
+                showDetachedWindow()
+            }
+
+            return
+        }
+
+        guard simulatorFrame != nil else {
+            hideImmediately()
+            return
+        }
+
         showIfPossible()
     }
     
     private func hide() {
-//        if state.isDetached {
-//            detachedFrame = panel.frame
-//            hideImmediately()
-//            return
-//        }
+        if isDetached {
+            detachedFrame = panel.frame
+            hideImmediately()
+            return
+        }
         
         guard let simulatorFrame else {
-//            hideImmediately()
+            hideImmediately()
             return
         }
         
@@ -213,88 +215,82 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 //            orderBelowSimulatorWindow()
 //        }
 //    }
-//
-//    private func setDetached(_ isDetached: Bool) {
-//        guard state.isDetached != isDetached else { return }
-//        state.isDetached = isDetached
-//
-//        if isDetached {
-//            detachFromSimulator()
-//        } else {
-//            dockToSimulator()
-//        }
-//    }
-//
-//    private func detachFromSimulator() {
-//        stopMovementTimer()
-//        targetFrame = nil
-//        shouldOrderOutAfterAnimation = false
-//        configureDetachedPanel()
-//        showDetachedWindow()
-//    }
-//
-//    private func dockToSimulator() {
-//        detachedFrame = panel.frame
-//        configureDockedPanel()
-//
+
+    func setDetached(_ value: Bool) {
+        guard self.isDetached != value else { return }
+        self.isDetached = value
+        
+        if value {
+            detachFromSimulator()
+        } else {
+            dockToSimulator()
+        }
+    }
+
+    private func detachFromSimulator() {
+        stopMovementTimer()
+        targetFrame = nil
+        shouldOrderOutAfterAnimation = false
+        configureDetachedPanel()
+        showDetachedWindow()
+    }
+
+    private func dockToSimulator() {
+        detachedFrame = panel.frame
+        configureDockedPanel()
+
+        // TODO: - Handle this case
 //        guard isEnabled else {
 //            hideImmediately()
 //            return
 //        }
-//
-//        guard simulatorFrame != nil else {
-//            hideImmediately()
-//            return
-//        }
-//
-//        showIfPossible()
-//    }
-//
-//    private func showDetachedWindow() {
-//        let currentFrame = panel.frame
-//        let frame = detachedFrame ?? CGRect(
-//            x: currentFrame.minX,
-//            y: currentFrame.minY,
-//            width: max(currentFrame.width, Layout.width),
-//            height: max(currentFrame.height, Layout.minimumDetachedHeight)
-//        )
-//
-//        panel.setFrame(frame, display: true, animate: false)
-//        panel.orderFrontRegardless()
-//        panel.makeKey()
-//    }
-//
-    
-//
-//    private func configureDetachedPanel() {
-//        panel.styleMask = [
-//            .titled,
-//            .closable,
-//            .miniaturizable,
-//            .resizable,
-//        ]
-//        panel.titleVisibility = .visible
-//        panel.titlebarAppearsTransparent = false
-//        panel.titlebarSeparatorStyle = .shadow
-//        panel.toolbarStyle = .automatic
-//        panel.isMovable = true
-//        panel.isMovableByWindowBackground = false
-//        panel.minSize = NSSize(width: Layout.width, height: Layout.minimumDetachedHeight)
-//        panel.collectionBehavior = []
-//    }
-//
-//
-//
-//    private func hideImmediately() {
-//        stopMovementTimer()
-//        targetFrame = nil
-//        shouldOrderOutAfterAnimation = false
-//        panel.orderOut(nil)
-//    }
-//
-//
-//
-//
+
+        guard simulatorFrame != nil else {
+            hideImmediately()
+            return
+        }
+
+        showIfPossible()
+    }
+
+    private func showDetachedWindow() {
+        let currentFrame = panel.frame
+        let frame = detachedFrame ?? CGRect(
+            x: currentFrame.minX,
+            y: currentFrame.minY,
+            width: max(currentFrame.width, Layout.width),
+            height: max(currentFrame.height, Layout.minimumDetachedHeight)
+        )
+
+        panel.setFrame(frame, display: true, animate: false)
+        panel.orderFrontRegardless()
+        panel.makeKey()
+    }
+
+    private func configureDetachedPanel() {
+        panel.styleMask = [
+            .titled,
+            .closable,
+            .miniaturizable,
+            .resizable
+        ]
+        panel.titleVisibility = .visible
+        panel.titlebarAppearsTransparent = false
+        panel.titlebarSeparatorStyle = .shadow
+        panel.toolbarStyle = .automatic
+        panel.isMovable = true
+        panel.isMovableByWindowBackground = false
+        panel.minSize = NSSize(width: Layout.width, height: Layout.minimumDetachedHeight)
+        panel.collectionBehavior = []
+    }
+
+    private func hideImmediately() {
+        stopMovementTimer()
+        targetFrame = nil
+        shouldOrderOutAfterAnimation = false
+        panel.orderOut(nil)
+    }
+
     private func startMovementTimer() {
         guard movementTimer == nil else { return }
 

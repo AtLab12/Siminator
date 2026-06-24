@@ -6,16 +6,54 @@ struct NetworkingFeatureView: View {
     let store: StoreOf<NetworkingFeature>
     
     var body: some View {
-        VStack {
-            Text("Networking contents")
+        VStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
+                header
+                Divider()
+//                certificateSection
+//                Divider()
+//                proxyControlSection
+//                Divider()
+            }
+            .padding(.horizontal, 16)
+
+//            sessionSection
         }
         .padding(.top, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background {
-            RoundedRectangle(cornerRadius: 18)
+            Rectangle()
                 .fill(.regularMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: store.isDetached ? 0 : 18))
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+    }
+    
+    private var header: some View {
+        HStack(spacing: 10) {
+            IconMaterialButton(
+                systemImage: store.isDetached ? "pin.fill" : "macwindow",
+                accessibilityLabel: store.isDetached ? "Dock to simulator" : "Detach window",
+                action: {
+                    store.send(.detachStatusToggled)
+                }
+            )
+
+            Text("Networking")
+                .font(.title2.weight(.semibold))
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+
+            if !store.isDetached {
+                IconMaterialButton(
+                    systemImage: "sidebar.right",
+                    accessibilityLabel: "Show request details",
+                    action: {}
+                )
+                .disabled(true)
+                .help("Show request details")
+            }
+        }
     }
 }
 
@@ -30,8 +68,7 @@ struct NetworkingSidebarView: View {
     var body: some View {
         VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
-                header
-                Divider()
+                
                 certificateSection
                 Divider()
                 proxyControlSection
@@ -45,34 +82,6 @@ struct NetworkingSidebarView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(background)
         .clipShape(RoundedRectangle(cornerRadius: viewModel.isDetached ? 0 : 18))
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            IconMaterialButton(
-                systemImage: viewModel.isDetached ? "pin.fill" : "macwindow",
-                accessibilityLabel: viewModel.isDetached ? "Dock to simulator" : "Detach window",
-                action: {
-                    onDetachedChanged(!viewModel.isDetached)
-                }
-            )
-
-            Text("Networking")
-                .font(.title2.weight(.semibold))
-                .lineLimit(1)
-
-            Spacer(minLength: 12)
-
-            if !viewModel.isDetached {
-                IconMaterialButton(
-                    systemImage: "sidebar.right",
-                    accessibilityLabel: "Show request details",
-                    action: {}
-                )
-                .disabled(true)
-                .help("Show request details")
-            }
-        }
     }
 
     @ViewBuilder
