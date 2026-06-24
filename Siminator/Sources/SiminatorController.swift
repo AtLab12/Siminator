@@ -75,7 +75,7 @@ struct SiminatorController {
         case .refreshCertificate:
             return .none
         case .deleteCertificates:
-            return .none
+            return .send(.networking(.deleteAllCertificatesPressed))
         }
     }
 }

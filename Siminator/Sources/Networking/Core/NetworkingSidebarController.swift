@@ -516,19 +516,6 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 //        }
 //    }
 //
-//    private func confirmCertificateGeneration() -> Bool {
-//        let alert = NSAlert()
-//        alert.messageText = "Generate Siminator Root Certificate?"
-//        alert.informativeText = """
-//        Siminator needs a local root certificate and private key to decrypt and display HTTPS traffic. Both files are generated on this Mac and stored together in Application Support.
-//        """
-//        alert.alertStyle = .warning
-//        alert.addButton(withTitle: "Generate")
-//        alert.addButton(withTitle: "Cancel")
-//
-//        NSApp.activate()
-//        return alert.runModal() == .alertFirstButtonReturn
-//    }
 //}
 //
 //extension NetworkingSidebarController {

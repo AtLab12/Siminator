@@ -8,21 +8,38 @@ struct NetworkingFeature {
     struct State {
 
         var isDetached: Bool = false
+        var rootCertificateStatus: CertificateStatus = .requiresGenerating
+        var isInstallingCertToSim = false
         
         @ObservationStateIgnored
         var sidebarController: NetworkingSidebarController?
+        
+        @ObservationStateIgnored
+        let certificateMaterialManager = CertificateMaterialManager()
     }
     
     enum Action {
+        case domain(Domain)
         case connectController(NetworkingSidebarController)
         case networkingWindowToggled(Bool)
-        case detachStatusToggled
+        case generateRootCertResult(CertificateMaterial?)
+        case deleteAllResult(Bool)
+        case deleteAllCertificatesPressed
+        
+        enum Domain {
+            case onAppear
+            case generateRootCertificatePressed
+            case detachStatusToggled
+            case installCertificateToSimPressed
+        }
     }
     
     
     var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
+            case .domain(let domainAction):
+                return handleDomainAction(&state, domainAction)
             case .connectController(let controller):
                 state.sidebarController = controller
                 return .none
@@ -32,17 +49,67 @@ struct NetworkingFeature {
                         controller?.setEnabled(value)
                     }
                 }
-            case .detachStatusToggled:
-                state.isDetached.toggle()
-                return .run { [
-                    controller = state.sidebarController,
-                    isDetached = state.isDetached
-                ] send in
-                    await controller?.setDetached(isDetached)
+            case .generateRootCertResult(let result):
+                guard result != nil else {
+                    state.rootCertificateStatus = .generationFailed
+                    return .none
                 }
+                
+                state.rootCertificateStatus = .generated
+                return .none
+            case .deleteAllCertificatesPressed:
+                return .run { [certManager = state.certificateMaterialManager] send in
+                    do {
+                        try await certManager.deleteCertificateMaterial()
+                        await send(.deleteAllResult(true))
+                    } catch {
+                        await send(.deleteAllResult(false))
+                    }
+                }
+            case .deleteAllResult(let result):
+                if result {
+                    state.rootCertificateStatus = .requiresGenerating
+                }
+                return .none
             }
         }
     }
+    
+    private func handleDomainAction(_ state: inout NetworkingFeature.State, _ action: NetworkingFeature.Action.Domain) -> Effect<Action> {
+        switch action {
+        case .onAppear:
+            return .none
+        case .generateRootCertificatePressed:
+            if state.rootCertificateStatus == .requiresGenerating {
+                state.rootCertificateStatus = .generating
+                return .run { [certManager = state.certificateMaterialManager] send in
+                    let result = try await certManager.ensureCertificateMaterialExists()
+                    await send(.generateRootCertResult(result))
+                }
+            }
+            return .none
+        case .detachStatusToggled:
+            state.isDetached.toggle()
+            return .run { [
+                controller = state.sidebarController,
+                isDetached = state.isDetached
+            ] send in
+                await controller?.setDetached(isDetached)
+            }
+        case .installCertificateToSimPressed:
+            // TODO: - Implement this
+            return .none
+        }
+    }
+}
+
+enum CertificateStatus: String {
+    case generating = "Generation in progress"
+    case generated = "Certificate generated"
+    case installed = "Certificate installed"
+    case requiresInstalling = "Please install the certificate"
+    case requiresGenerating = "Please generate the certificate"
+    case generationFailed = "Generation failed"
 }
 
 
@@ -92,15 +159,6 @@ final class NetworkingSidebarVM {
 
     func simulatorSelectedWithId(_ udid: String) {
         processingSim = .init(udid: udid)
-    }
-
-    enum CertificateStatus: String {
-        case generating = "Generation in progress"
-        case generated = "Certificate generated"
-        case installed = "Certificate installed"
-        case requiresInstalling = "Please install the certificate"
-        case requiresGenerating = "Please generate the certificate"
-        case generationFailed = "Generation failed"
     }
 
     struct ProcessingSim {

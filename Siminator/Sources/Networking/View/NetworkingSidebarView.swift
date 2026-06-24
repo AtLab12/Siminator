@@ -10,8 +10,8 @@ struct NetworkingFeatureView: View {
             VStack(alignment: .leading, spacing: 14) {
                 header
                 Divider()
-//                certificateSection
-//                Divider()
+                certificateSection
+                Divider()
 //                proxyControlSection
 //                Divider()
             }
@@ -26,6 +26,9 @@ struct NetworkingFeatureView: View {
                 .fill(.regularMaterial)
                 .clipShape(RoundedRectangle(cornerRadius: store.isDetached ? 0 : 18))
         }
+        .onAppear {
+            
+        }
     }
     
     private var header: some View {
@@ -34,7 +37,7 @@ struct NetworkingFeatureView: View {
                 systemImage: store.isDetached ? "pin.fill" : "macwindow",
                 accessibilityLabel: store.isDetached ? "Dock to simulator" : "Detach window",
                 action: {
-                    store.send(.detachStatusToggled)
+                    store.send(.domain(.detachStatusToggled))
                 }
             )
 
@@ -55,6 +58,49 @@ struct NetworkingFeatureView: View {
             }
         }
     }
+    
+    var certificateSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Root macOS certificate
+            if store.rootCertificateStatus == .generated {
+                Label(store.rootCertificateStatus.rawValue, systemImage: "checkmark.shield.fill")
+                    .font(.callout)
+                    .foregroundStyle(.green)
+                    .lineLimit(2)
+                    .contentTransition(.symbolEffect(.replace))
+            } else {
+                Button {
+                    store.send(.domain(.generateRootCertificatePressed))
+                } label: {
+                    Label("Generate Certificate", systemImage: "shield")
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.rootCertificateStatus == .generating)
+
+                if store.rootCertificateStatus == .generating {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+
+                Text(store.rootCertificateStatus.rawValue)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Button {
+                store.send(.domain(.installCertificateToSimPressed))
+            } label: {
+                Label("Install certificate on simulator", systemImage: "iphone")
+            }
+            .buttonStyle(.bordered)
+            .disabled(store.isInstallingCertToSim)
+//            .popover(isPresented: $viewModel.isSimulatorSelectionPopoverPresented) {
+//                simulatorSelection
+//            }
+        }
+    }
 }
 
 struct NetworkingSidebarView: View {
@@ -69,8 +115,6 @@ struct NetworkingSidebarView: View {
         VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
                 
-                certificateSection
-                Divider()
                 proxyControlSection
                 Divider()
             }
@@ -92,49 +136,6 @@ struct NetworkingSidebarView: View {
         } else {
             RoundedRectangle(cornerRadius: 18)
                 .fill(.regularMaterial)
-        }
-    }
-
-    var certificateSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Root macOS certificate
-            if viewModel.isCertificateGenerated {
-                Label(viewModel.certificateStatus.rawValue, systemImage: "checkmark.shield.fill")
-                    .font(.callout)
-                    .foregroundStyle(.green)
-                    .lineLimit(2)
-                    .contentTransition(.symbolEffect(.replace))
-            } else {
-                Button {
-                    onCertificateGenerationRequested()
-                } label: {
-                    Label("Generate Certificate", systemImage: "shield")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .buttonStyle(.bordered)
-                .disabled(viewModel.isCertificateGenerating)
-
-                if viewModel.isCertificateGenerating {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-
-                Text(viewModel.certificateStatus.rawValue)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            Button {
-                onInstallCertificateOnSim()
-            } label: {
-                Label("Install certificate on simulator", systemImage: "iphone")
-            }
-            .buttonStyle(.bordered)
-            .disabled(viewModel.isInstallingOnSimulator)
-            .popover(isPresented: $viewModel.isSimulatorSelectionPopoverPresented) {
-                simulatorSelection
-            }
         }
     }
 
