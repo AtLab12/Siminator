@@ -8,14 +8,40 @@ struct NetworkingFeature {
     struct State {
 
         var isDetached: Bool = false
-        var rootCertificateStatus: CertificateStatus = .requiresGenerating
+        var rootCertificateStatus: CertificateStatus = .loading
         var isInstallingCertToSim = false
+        var captureStatus: CaptureStatus = .stop
+        var isClearSessionVisible: Bool = false
+        
+        var isTransitioning: Bool {
+            captureStatus == .starting || captureStatus == .stopping
+        }
+        
+        var captureButtonTitle: String {
+            switch captureStatus {
+            case .stop:
+                return "Stopped"
+            case .running:
+                return "Running"
+            case .starting:
+                return "Starting ..."
+            case .stopping:
+                return "Stopping ..."
+            }
+        }
         
         @ObservationStateIgnored
         var sidebarController: NetworkingSidebarController?
         
         @ObservationStateIgnored
         let certificateMaterialManager = CertificateMaterialManager()
+        
+        enum CaptureStatus {
+            case stop
+            case running
+            case starting
+            case stopping
+        }
     }
     
     enum Action {
@@ -25,6 +51,8 @@ struct NetworkingFeature {
         case generateRootCertResult(CertificateMaterial?)
         case deleteAllResult(Bool)
         case deleteAllCertificatesPressed
+        case checkIfCertificatesExist
+        case loadCertificateResult(Bool)
         
         enum Domain {
             case onAppear
@@ -33,7 +61,6 @@ struct NetworkingFeature {
             case installCertificateToSimPressed
         }
     }
-    
     
     var body: some ReducerOf<Self> {
         Reduce { state, action in
@@ -71,6 +98,22 @@ struct NetworkingFeature {
                     state.rootCertificateStatus = .requiresGenerating
                 }
                 return .none
+            case .checkIfCertificatesExist:
+                return .run { [certControll = state.certificateMaterialManager] send in
+                    do {
+                        let result = try await certControll.certificateState()
+                        await send(.loadCertificateResult(result.isGenerated))
+                    } catch {
+                        await send(.loadCertificateResult(false))
+                    }
+                }
+            case .loadCertificateResult(let value):
+                if value {
+                    state.rootCertificateStatus = .generated
+                } else {
+                    state.rootCertificateStatus = .requiresGenerating
+                }
+                return .none
             }
         }
     }
@@ -78,7 +121,7 @@ struct NetworkingFeature {
     private func handleDomainAction(_ state: inout NetworkingFeature.State, _ action: NetworkingFeature.Action.Domain) -> Effect<Action> {
         switch action {
         case .onAppear:
-            return .none
+            return .send(.checkIfCertificatesExist)
         case .generateRootCertificatePressed:
             if state.rootCertificateStatus == .requiresGenerating {
                 state.rootCertificateStatus = .generating
@@ -110,11 +153,10 @@ enum CertificateStatus: String {
     case requiresInstalling = "Please install the certificate"
     case requiresGenerating = "Please generate the certificate"
     case generationFailed = "Generation failed"
+    case loading = "Loading ..."
 }
 
 
-
-/// Closely works with NetworkingSidebarController
 /// Exists as a bridge between underlying proxy logic and view state
 @Observable
 final class NetworkingSidebarVM {

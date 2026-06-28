@@ -4,7 +4,6 @@ let swiftSettings: SettingsDictionary = [
     "SWIFT_VERSION": "6.2",
     "SWIFT_STRICT_CONCURRENCY": "complete",
     "SWIFT_APPROACHABLE_CONCURRENCY": "YES",
-    "SWIFT_UPCOMING_FEATURE_NONISOLATEDNONSENDINGBYDEFAULT": "YES",
 ]
 
 let appSettings = swiftSettings.merging([

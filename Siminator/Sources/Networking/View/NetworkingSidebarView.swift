@@ -12,8 +12,8 @@ struct NetworkingFeatureView: View {
                 Divider()
                 certificateSection
                 Divider()
-//                proxyControlSection
-//                Divider()
+                proxyControlSection
+                Divider()
             }
             .padding(.horizontal, 16)
 
@@ -27,7 +27,7 @@ struct NetworkingFeatureView: View {
                 .clipShape(RoundedRectangle(cornerRadius: store.isDetached ? 0 : 18))
         }
         .onAppear {
-            
+            store.send(.domain(.onAppear))
         }
     }
     
@@ -59,10 +59,15 @@ struct NetworkingFeatureView: View {
         }
     }
     
-    var certificateSection: some View {
+    private var certificateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Root macOS certificate
-            if store.rootCertificateStatus == .generated {
+            if store.rootCertificateStatus == .loading {
+                ProgressView {
+                    Text("Loading certificates ...")
+                }
+                .controlSize(.small)
+            } else if store.rootCertificateStatus == .generated {
                 Label(store.rootCertificateStatus.rawValue, systemImage: "checkmark.shield.fill")
                     .font(.callout)
                     .foregroundStyle(.green)
@@ -89,17 +94,73 @@ struct NetworkingFeatureView: View {
                     .lineLimit(2)
             }
 
-            Button {
-                store.send(.domain(.installCertificateToSimPressed))
-            } label: {
-                Label("Install certificate on simulator", systemImage: "iphone")
+            if store.rootCertificateStatus != .loading {
+                Button {
+                    store.send(.domain(.installCertificateToSimPressed))
+                } label: {
+                    Label("Install certificate on simulator", systemImage: "iphone")
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.isInstallingCertToSim)
+                //            .popover(isPresented: $viewModel.isSimulatorSelectionPopoverPresented) {
+                //                simulatorSelection
+                //            }
             }
-            .buttonStyle(.bordered)
-            .disabled(store.isInstallingCertToSim)
-//            .popover(isPresented: $viewModel.isSimulatorSelectionPopoverPresented) {
-//                simulatorSelection
-//            }
         }
+    }
+    
+    private var proxyControlSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button {
+//                    onCaptureToggled()
+                } label: {
+                    if store.isTransitioning {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.small)
+
+                            Text(store.captureButtonTitle)
+                        }
+                    } else {
+                        Label(
+                            store.captureButtonTitle,
+                            systemImage: captureButtonSystemImage
+                        )
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isTransitioning)
+                .accessibilityLabel(store.captureButtonTitle)
+
+                Spacer()
+
+                if store.isClearSessionVisible {
+                    Button {
+                        withAnimation {
+//                            viewModel.clearSession()
+                        }
+                    } label: {
+                        Label("Clear session", systemImage: "trash")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+
+//            Text(viewModel.captureStatus)
+//                .font(.caption)
+//                .foregroundStyle(.secondary)
+//                .lineLimit(2)
+//
+//            Text(viewModel.proxyRoutingStatus)
+//                .font(.callout)
+//                .foregroundStyle(.secondary)
+//                .lineLimit(3)
+        }
+    }
+    
+    private var captureButtonSystemImage: String {
+        store.captureStatus == .running ? "stop.fill" : "record.circle"
     }
 }
 
@@ -114,9 +175,7 @@ struct NetworkingSidebarView: View {
     var body: some View {
         VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 14) {
-                
-                proxyControlSection
-                Divider()
+              
             }
             .padding(.horizontal, 16)
 
@@ -139,55 +198,7 @@ struct NetworkingSidebarView: View {
         }
     }
 
-    var proxyControlSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Button {
-                    onCaptureToggled()
-                } label: {
-                    if isCaptureTransitioning {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-
-                            Text(captureButtonTitle)
-                        }
-                    } else {
-                        Label(
-                            captureButtonTitle,
-                            systemImage: captureButtonSystemImage
-                        )
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isCaptureTransitioning)
-                .accessibilityLabel(captureButtonTitle)
-
-                Spacer()
-
-                if viewModel.clearSessionButtonVisible {
-                    Button {
-                        withAnimation {
-                            viewModel.clearSession()
-                        }
-                    } label: {
-                        Label("Clear session", systemImage: "trash")
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-
-            Text(viewModel.captureStatus)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-
-            Text(viewModel.proxyRoutingStatus)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(3)
-        }
-    }
+    
     
     var simulatorSelection: some View {
         Group {
@@ -236,21 +247,7 @@ struct NetworkingSidebarView: View {
         viewModel.isCaptureStarting || viewModel.isCaptureStopping
     }
 
-    private var captureButtonTitle: String {
-        if viewModel.isCaptureStarting {
-            return "Starting ..."
-        }
-
-        if viewModel.isCaptureStopping {
-            return "Stopping ..."
-        }
-
-        return viewModel.isCaptureRunning ? "Stop" : "Start"
-    }
-
-    private var captureButtonSystemImage: String {
-        viewModel.isCaptureRunning ? "stop.fill" : "record.circle"
-    }
+    
 }
 
 struct IconMaterialButton: View {

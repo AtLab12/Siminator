@@ -19,6 +19,6 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.100.0"),
         .package(url: "https://github.com/apple/swift-nio-http2.git", from: "1.42.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.37.1"),
-        .package(url: "https://github.com/AtLab12/swift-composable-architecture.git", branch: "main")
+        .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.26.0")
     ]
 )
