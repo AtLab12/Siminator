@@ -1,5 +1,54 @@
 import Foundation
 import SwiftUI
+import ComposableArchitecture
+
+struct SessionView: View {
+    
+    @Bindable var store: StoreOf<SessionLogFeature>
+    @FocusState private var isSessionTitleFocused: Bool
+    @FocusState private var isURLFilterFocused: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            toolSection
+        }
+    }
+    
+    // MARK: - Tool section
+    private var toolSection: some View {
+        HStack(spacing: 8) {
+            IconMaterialButton(
+                systemImage: "list.bullet",
+                accessibilityLabel: "Past sessions",
+                action: {
+                    store.send(.domain(.sessionBrowserToggled))
+                }
+            )
+//            .popover(isPresented: $isSessionBrowserPresented, arrowEdge: .bottom) {
+//                Text("Past sessions")
+//                    .font(.headline)
+//                    .padding(16)
+//                    .frame(width: 220, alignment: .leading)
+//            }
+
+            IconMaterialButton(systemImage: "wrench.and.screwdriver", accessibilityLabel: "Preview logging settings") {
+//                viewModel.logginSettingsEnabled.toggle()
+            }
+
+            Spacer(minLength: 8)
+
+            TextField("Session title", text: $store.activeSessionTitle)
+                .textFieldStyle(.plain)
+                .font(.headline)
+                .lineLimit(1)
+                .focused($isSessionTitleFocused)
+        }
+        .padding(.horizontal, 16)
+        .defaultFocus($isSessionTitleFocused, false)
+    }
+}
+
+// MARK: - Below old
 
 struct SessionLogView: View {
     @Bindable var viewModel: SessionLogVM
@@ -10,7 +59,7 @@ struct SessionLogView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            toolSection
+//            toolSection
 
             if viewModel.logginSettingsEnabled {
                 advancedFiltering
@@ -49,39 +98,7 @@ struct SessionLogView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    // MARK: - Tool section
 
-    var toolSection: some View {
-        HStack(spacing: 8) {
-            IconMaterialButton(
-                systemImage: "list.bullet",
-                accessibilityLabel: "Past sessions",
-                action: {
-                    isSessionBrowserPresented.toggle()
-                }
-            )
-            .popover(isPresented: $isSessionBrowserPresented, arrowEdge: .bottom) {
-                Text("Past sessions")
-                    .font(.headline)
-                    .padding(16)
-                    .frame(width: 220, alignment: .leading)
-            }
-
-            IconMaterialButton(systemImage: "wrench.and.screwdriver", accessibilityLabel: "Preview logging settings") {
-                viewModel.logginSettingsEnabled.toggle()
-            }
-
-            Spacer(minLength: 8)
-
-            TextField("Session title", text: $viewModel.activeSession.title)
-                .textFieldStyle(.plain)
-                .font(.headline)
-                .lineLimit(1)
-                .focused($isSessionTitleFocused)
-        }
-        .padding(.horizontal, 16)
-        .defaultFocus($isSessionTitleFocused, false)
-    }
 
     // MARK: - Advanced filtering
 
@@ -306,21 +323,3 @@ private extension View {
         }
     }
 }
-
-#if DEBUG
-    #Preview {
-        let requests = (1 ... 5).map { _ in
-            CapturedNetworkRequest(
-                id: UUID(),
-                method: "GET",
-                scheme: "https",
-                host: "127.0.0.1",
-                port: 9090,
-                path: "/apiv1/dogs",
-                status: .succeeded,
-                process: .unknown
-            )
-        }
-        SessionLogView(viewModel: .init(requests: requests))
-    }
-#endif

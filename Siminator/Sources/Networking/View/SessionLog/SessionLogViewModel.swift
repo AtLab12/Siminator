@@ -1,4 +1,49 @@
 import Foundation
+import ComposableArchitecture
+
+@Reducer
+struct SessionLogFeature {
+    
+    @ObservableState
+    struct State {
+        var showSessionBrowser = false
+        var showAppFilter = false
+        var activeSessionTitle: String = ""
+    }
+    
+    enum Action: BindableAction {
+        case binding(BindingAction<State>)
+        case domain(Domain)
+        
+        enum Domain {
+            case sessionBrowserToggled
+        }
+    }
+    
+    var body: some ReducerOf<Self> {
+        
+        BindingReducer()
+        
+        Reduce { state, action in
+            switch action {
+            case .binding:
+                return .none
+            case .domain(let domainAction):
+                return handleDomain(domainAction, state: &state)
+            }
+        }
+    }
+    
+    private func handleDomain(_ action: Action.Domain, state: inout State) -> Effect<Action> {
+        switch action {
+        case .sessionBrowserToggled:
+            state.showSessionBrowser.toggle()
+            return .none
+        }
+    }
+}
+
+// MARK: - Below old
 
 struct SessionLogAppFilter: Identifiable, Hashable, Sendable {
     let id: String
