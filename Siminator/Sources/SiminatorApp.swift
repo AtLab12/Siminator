@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import ComposableArchitecture
 
@@ -10,8 +11,11 @@ struct SiminatorApp: App {
     }
     
     var body: some Scene {
-        MenuBarExtra("Siminator", systemImage: "star") {
+        MenuBarExtra {
             SiminatorMenuView(store: Self.store)
+        } label: {
+            Image("SiminatorExtraIcon")
+                .accessibilityLabel("Siminator")
         }
     }
 }
