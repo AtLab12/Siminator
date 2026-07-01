@@ -46,6 +46,7 @@ struct ToolsView: View {
                 Text("Show networking sidebar")
             }
             .toggleStyle(.switch)
+            .tint(.gray)
         }
         .padding(16)
         .frame(width: 260, height: 180)

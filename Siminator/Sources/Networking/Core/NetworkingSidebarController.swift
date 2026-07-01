@@ -93,6 +93,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         if !panel.isVisible {
             panel.setFrame(hiddenFrame(for: simulatorFrame), display: false, animate: false)
             panel.orderFrontRegardless()
+            clearInitialTextFieldFocus()
             orderBelowSimulatorWindow()
         }
 
@@ -243,6 +244,16 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         panel.setFrame(frame, display: true, animate: false)
         panel.orderFrontRegardless()
         panel.makeKey()
+        clearInitialTextFieldFocus()
+    }
+
+    private func clearInitialTextFieldFocus() {
+        panel.makeFirstResponder(nil)
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.panel.isVisible else { return }
+            self.panel.makeFirstResponder(nil)
+        }
     }
 
     private func configureDetachedPanel() {

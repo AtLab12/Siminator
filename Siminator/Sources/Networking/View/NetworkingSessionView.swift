@@ -211,6 +211,7 @@ struct NetworkingSessionView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(.gray)
                 .disabled(store.isCaptureTransitioning)
                 .accessibilityLabel(store.captureButtonTitle)
 
