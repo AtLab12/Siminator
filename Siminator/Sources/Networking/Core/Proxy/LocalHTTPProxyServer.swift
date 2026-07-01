@@ -8,7 +8,7 @@ nonisolated enum ProxyConstants {
 }
 
 actor LocalHTTPProxyServer {
-    typealias RequestEventSink = @MainActor @Sendable (CapturedNetworkRequestEvent) -> Void
+    typealias RequestEventSink = @Sendable (CapturedNetworkRequestEvent) -> Void
 
     private let requestEventSink: RequestEventSink?
     private var channel: Channel?

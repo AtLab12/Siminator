@@ -1,122 +1,44 @@
-import Foundation
-import SwiftUI
 import ComposableArchitecture
+import SwiftUI
 
-struct SessionView: View {
-    
-    @Bindable var store: StoreOf<SessionLogFeature>
-    @FocusState private var isSessionTitleFocused: Bool
-    @FocusState private var isURLFilterFocused: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            toolSection
-        }
-    }
-    
-    // MARK: - Tool section
-    private var toolSection: some View {
-        HStack(spacing: 8) {
-            IconMaterialButton(
-                systemImage: "list.bullet",
-                accessibilityLabel: "Past sessions",
-                action: {
-                    store.send(.domain(.sessionBrowserToggled))
-                }
-            )
-//            .popover(isPresented: $isSessionBrowserPresented, arrowEdge: .bottom) {
-//                Text("Past sessions")
-//                    .font(.headline)
-//                    .padding(16)
-//                    .frame(width: 220, alignment: .leading)
-//            }
-
-            IconMaterialButton(systemImage: "wrench.and.screwdriver", accessibilityLabel: "Preview logging settings") {
-//                viewModel.logginSettingsEnabled.toggle()
-            }
-
-            Spacer(minLength: 8)
-
-            TextField("Session title", text: $store.activeSessionTitle)
-                .textFieldStyle(.plain)
-                .font(.headline)
-                .lineLimit(1)
-                .focused($isSessionTitleFocused)
-        }
-        .padding(.horizontal, 16)
-        .defaultFocus($isSessionTitleFocused, false)
-    }
-}
-
-// MARK: - Below old
-
-struct SessionLogView: View {
-    @Bindable var viewModel: SessionLogVM
-    @State private var isSessionBrowserPresented = false
-    @State private var isAppFilterPresented = false
+struct NetworkingSessionView: View {
+    @Bindable var store: StoreOf<NetworkingSession>
     @FocusState private var isSessionTitleFocused: Bool
     @FocusState private var isURLFilterFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-//            toolSection
+            toolbarSection
+            captureStatusSection
 
-            if viewModel.logginSettingsEnabled {
+            if store.settingsEnabled {
                 advancedFiltering
             }
 
-            if let requestSummary {
-                Text(requestSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 16)
-            }
-
-            if viewModel.filteredRequests.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: viewModel.visibleRequests.isEmpty ? "network" : "magnifyingglass")
-                        .font(.title2)
-                        .foregroundStyle(.secondary)
-
-                    Text(viewModel.visibleRequests.isEmpty ? "No requests captured" : "No matching requests")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView {
-                    LazyVStack {
-                        ForEach(viewModel.filteredRequests.reversed()) { request in
-                            CapturedRequestRow(request: request)
-                        }
-                    }
-                    .padding(.vertical)
-                    .padding(.bottom)
-                }
-            }
+            requestSummarySection
+            requestListSection
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .task {
+            await store.send(.requestEventsTask).finish()
+        }
     }
 
-
-
-    // MARK: - Advanced filtering
-
-    var advancedFiltering: some View {
+    private var advancedFiltering: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.secondary)
 
-                TextField("Filter request URLs", text: $viewModel.urlFilterText)
+                TextField("Filter request URLs", text: $store.urlFilterText)
                     .textFieldStyle(.plain)
                     .font(.callout)
                     .focused($isURLFilterFocused)
 
-                if !viewModel.urlFilterText.isEmpty {
+                if !store.urlFilterText.isEmpty {
                     Button {
-                        viewModel.urlFilterText = ""
+                        store.send(.clearURLFilterButtonTapped)
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 13, weight: .semibold))
@@ -131,21 +53,13 @@ struct SessionLogView: View {
             .sessionLogGlassSurface(.rect(cornerRadius: 14), isInteractive: true)
 
             Button {
-                isAppFilterPresented.toggle()
+                store.showAppFilter = true
             } label: {
                 HStack(spacing: 10) {
-                    if let selectedAppFilter = viewModel.selectedAppFilter {
-                        RequestProcessIcon(process: selectedAppFilter.process)
-                            .frame(width: 22, height: 22)
-                    } else {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 22, height: 22)
-                    }
+                    appFilterIcon
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(viewModel.selectedAppFilter?.displayName ?? "All Apps")
+                        Text(store.selectedAppFilter?.displayName ?? "All Apps")
                             .font(.callout.weight(.medium))
                             .lineLimit(1)
 
@@ -161,19 +75,18 @@ struct SessionLogView: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
-                .contentShape(RoundedRectangle(cornerRadius: 14))
+                .contentShape(.rect(cornerRadius: 14))
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
             .sessionLogGlassSurface(.rect(cornerRadius: 14), isInteractive: true)
-            .popover(isPresented: $isAppFilterPresented, arrowEdge: .bottom) {
+            .popover(isPresented: $store.showAppFilter, arrowEdge: .bottom) {
                 SessionLogAppFilterPopover(
-                    appFilters: viewModel.appFilters,
-                    selectedAppFilter: viewModel.selectedAppFilter
+                    appFilters: store.appFilters,
+                    selectedAppFilter: store.selectedAppFilter
                 ) { appFilter in
-                    viewModel.selectedAppFilter = appFilter
-                    isAppFilterPresented = false
+                    store.send(.appFilterSelected(appFilter), animation: .default)
                 }
             }
         }
@@ -181,16 +94,140 @@ struct SessionLogView: View {
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
-    private var requestSummary: String? {
-        if viewModel.logginSettingsEnabled, viewModel.hasActiveFilters {
-            return "Showing \(viewModel.filteredRequests.count.formatted()) matching of \(viewModel.visibleRequests.count.formatted()) recent requests"
+    @ViewBuilder
+    private var appFilterIcon: some View {
+        if let selectedAppFilter = store.selectedAppFilter {
+            RequestProcessIcon(process: selectedAppFilter.process)
+                .frame(width: 22, height: 22)
+        } else {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
         }
+    }
 
-        if viewModel.totalRequestCount > viewModel.visibleRequests.count {
-            return "Showing latest \(viewModel.visibleRequests.count.formatted()) of \(viewModel.totalRequestCount.formatted())"
+    private var captureStatusSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(store.captureStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
+            Text(store.proxyRoutingStatus)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
         }
+        .padding(.horizontal, 16)
+    }
 
-        return nil
+    @ViewBuilder
+    private var requestListSection: some View {
+        if store.filteredRequests.isEmpty {
+            VStack(spacing: 8) {
+                Image(systemName: store.visibleRequests.isEmpty ? "network" : "magnifyingglass")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+
+                Text(store.visibleRequests.isEmpty ? "No requests captured" : "No matching requests")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVStack {
+                    ForEach(store.filteredRequests.reversed()) { request in
+                        CapturedRequestRow(request: request)
+                    }
+                }
+                .padding(.vertical)
+                .padding(.bottom)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var requestSummarySection: some View {
+        if let requestSummary = store.requestSummary {
+            Text(requestSummary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 16)
+        }
+    }
+
+    private var toolbarSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                IconMaterialButton(
+                    systemImage: "list.bullet",
+                    accessibilityLabel: "Past sessions",
+                    action: {
+                        store.send(.sessionBrowserButtonTapped)
+                    }
+                )
+                .popover(isPresented: $store.showSessionBrowser, arrowEdge: .bottom) {
+                    Text("Past sessions")
+                        .font(.headline)
+                        .padding(16)
+                        .frame(width: 220, alignment: .leading)
+                }
+
+                IconMaterialButton(
+                    systemImage: "wrench.and.screwdriver",
+                    accessibilityLabel: "Preview logging settings",
+                    action: {
+                        store.send(.settingsButtonTapped, animation: .easeIn)
+                    }
+                )
+
+                Spacer(minLength: 8)
+
+                TextField("Session title", text: $store.activeSessionTitle)
+                    .textFieldStyle(.plain)
+                    .font(.headline)
+                    .lineLimit(1)
+                    .focused($isSessionTitleFocused)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    store.send(.captureButtonTapped)
+                } label: {
+                    if store.isCaptureTransitioning {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.small)
+
+                            Text(store.captureButtonTitle)
+                        }
+                    } else {
+                        Label(
+                            store.captureButtonTitle,
+                            systemImage: store.captureButtonSystemImage
+                        )
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isCaptureTransitioning)
+                .accessibilityLabel(store.captureButtonTitle)
+
+                Spacer(minLength: 8)
+
+                if store.isClearSessionVisible {
+                    Button {
+                        store.send(.clearSessionButtonTapped, animation: .default)
+                    } label: {
+                        Label("Clear session", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .defaultFocus($isSessionTitleFocused, false)
     }
 }
 
@@ -308,7 +345,10 @@ private struct AppFilterRow: View {
 
 private extension View {
     @ViewBuilder
-    func sessionLogGlassSurface<S: InsettableShape>(_ shape: S, isInteractive: Bool = false) -> some View {
+    func sessionLogGlassSurface<S: InsettableShape>(
+        _ shape: S,
+        isInteractive: Bool = false
+    ) -> some View {
         if #available(macOS 26.0, *) {
             if isInteractive {
                 glassEffect(.regular.interactive(), in: shape)

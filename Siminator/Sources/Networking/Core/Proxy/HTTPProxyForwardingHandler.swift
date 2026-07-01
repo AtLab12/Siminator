@@ -4,7 +4,7 @@ import NIOHTTP1
 import NIOPosix
 import NIOSSL
 
-final nonisolated class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
+final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelHandler, @unchecked Sendable {
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
 
@@ -268,10 +268,10 @@ final nonisolated class HTTPProxyForwardingHandler: ChannelInboundHandler, Remov
             let pendingTLSBuffer = pendingTLSBuffer
             self.pendingTLSBuffer = nil
 
-            try channel.pipeline.syncOperations.removeHandler(self)
+            _ = channel.pipeline.syncOperations.removeHandler(self)
 
             if let pendingTLSBuffer, pendingTLSBuffer.readableBytes > 0 {
-                channel.pipeline.fireChannelRead(NIOAny(pendingTLSBuffer))
+                channel.pipeline.fireChannelRead(pendingTLSBuffer)
             }
         } catch {
             failMITMSetup(channel: channel, error: error)

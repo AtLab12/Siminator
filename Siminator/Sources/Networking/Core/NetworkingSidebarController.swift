@@ -19,24 +19,8 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private var movementTimer: Timer?
     private var detachedFrame: CGRect?
     private var shouldOrderOutAfterAnimation = false
-//    private let appIconCache = AppIconCache()
     private(set) var isDetached: Bool = false
-    
-//    private lazy var appIconStore = AppIconStore(cache: appIconCache)
-//    private let certificateMaterialManager = CertificateMaterialManager()
-//    private lazy var proxyServer = LocalHTTPProxyServer(
-//        appIconStore: appIconStore,
-//        certificateMaterialManager: certificateMaterialManager
-//    ) { [weak self] event in
-////        self?.state.handleRequestEvent(event)
-//    }
 
-//    private let systemProxySettingsManager = SystemProxySettingsManager()
-//    private var proxyControlTask: Task<Void, Never>?
-//    private var certificateGenerationTask: Task<Void, Never>?
-//    private var certInstallTask: Task<Void, Never>?
-//    private var captureOperationID = 0
-//    var onEnabledChanged: ((Bool) -> Void)?
     var onPanelInteraction: (() -> Void)?
 
     @MainActor
@@ -56,13 +40,15 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         panel.delegate = self
         
         configureDockedPanel()
-//        refreshCertificateState()
     }
 
     func connect(store: StoreOf<NetworkingFeature>) {
         store.send(.connectController(self))
         
-        let hostingView = NSHostingView(rootView: NetworkingFeatureView(store: store))
+        let hostingView = NSHostingView(
+            rootView: NetworkingFeatureView(store: store)
+                .environment(AppIconCache.shared)
+        )
         hostingView.wantsLayer = true
         hostingView.layer?.backgroundColor = NSColor.clear.cgColor
 
@@ -197,24 +183,22 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         move(to: hiddenFrame(for: simulatorFrame))
     }
     
-//
-//    func windowShouldClose(_: NSWindow) -> Bool {
-//        setEnabled(false)
-//        onEnabledChanged?(false)
-//        return false
-//    }
-//
-//    func bringToFrontWithSimulator() {
-//        guard panel.isVisible else { return }
-//
-//        if state.isDetached {
-//            panel.orderFrontRegardless()
-//            panel.makeKey()
-//        } else {
-//            panel.orderFrontRegardless()
-//            orderBelowSimulatorWindow()
-//        }
-//    }
+    func windowShouldClose(_: NSWindow) -> Bool {
+        setEnabled(false)
+        return false
+    }
+
+    func bringToFrontWithSimulator() {
+        guard panel.isVisible else { return }
+
+        if isDetached {
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        } else {
+            panel.orderFrontRegardless()
+            orderBelowSimulatorWindow()
+        }
+    }
 
     func setDetached(_ value: Bool) {
         guard self.isDetached != value else { return }
@@ -238,12 +222,6 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     private func dockToSimulator() {
         detachedFrame = panel.frame
         configureDockedPanel()
-
-        // TODO: - Handle this case
-//        guard isEnabled else {
-//            hideImmediately()
-//            return
-//        }
 
         guard simulatorFrame != nil else {
             hideImmediately()
@@ -334,219 +312,6 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         panel.setFrame(nextFrame, display: true, animate: false)
         orderBelowSimulatorWindow()
     }
-//
-//
-//    private func toggleCapture() {
-//        guard !state.isCaptureStarting, !state.isCaptureStopping else {
-//            return
-//        }
-//
-//        if state.isCaptureRunning {
-//            stopCapture()
-//        } else {
-//            startCapture()
-//        }
-//    }
-//
-//    private func startCapture() {
-//        guard proxyControlTask == nil else { return }
-//
-//        captureOperationID += 1
-//        let operationID = captureOperationID
-//
-//        state.isCaptureStarting = true
-//        state.isCaptureStopping = false
-//        state.captureStatus = "Starting proxy on \(ProxyConstants.host):\(ProxyConstants.port)"
-//        state.beginNewSession()
-//
-//        proxyControlTask = Task { [weak self] in
-//            guard let self else { return }
-//
-//            do {
-//                try await refreshCertificateState()
-//                guard isCurrentCaptureOperation(operationID) else { return }
-//
-//                if !state.isCertificateGenerated {
-//                    let didGenerateCertificate = await performCertificateGenerationFlow()
-//                    guard isCurrentCaptureOperation(operationID) else { return }
-//
-//                    guard didGenerateCertificate else {
-//                        state.captureStatus = "Proxy start cancelled"
-//                        state.isCaptureStarting = false
-//                        state.isCaptureStopping = false
-//                        proxyControlTask = nil
-//                        return
-//                    }
-//                }
-//
-//                let port = try await proxyServer.start(port: ProxyConstants.port)
-//                guard isCurrentCaptureOperation(operationID) else { return }
-//
-//                state.isCaptureRunning = true
-//                state.isCaptureStarting = false
-//                state.captureStatus = "Listening on \(ProxyConstants.host):\(port)"
-//                state.proxyRoutingStatus = "Enabling system proxy"
-//
-//                let services = try await systemProxySettingsManager.enableProxy(host: ProxyConstants.host, port: port)
-//                guard isCurrentCaptureOperation(operationID) else { return }
-//
-//                state.captureStatus = "Listening on \(ProxyConstants.host):\(port)"
-//                state.proxyRoutingStatus = "Routing enabled: \(services.joined(separator: ", "))"
-//            } catch {
-//                guard isCurrentCaptureOperation(operationID) else { return }
-//
-//                if state.isCaptureRunning {
-//                    state.proxyRoutingStatus = "System proxy failed: \(error.localizedDescription)"
-//                } else {
-//                    state.captureStatus = "Failed to start proxy: \(error.localizedDescription)"
-//                    state.proxyRoutingStatus = "System proxy disabled"
-//                    try? await proxyServer.stop()
-//                }
-//            }
-//
-//            if isCurrentCaptureOperation(operationID) {
-//                state.isCaptureStarting = false
-//                state.isCaptureStopping = false
-//                proxyControlTask = nil
-//            }
-//        }
-//    }
-//
-//    func refreshCertificateState() {
-//        Task { [weak self] in
-//            guard let self else { return }
-//            try? await refreshCertificateState()
-//        }
-//    }
-//
-//    func deleteCertificates() {
-//        Task { [weak self] in
-//            guard let self else { return }
-//
-//            do {
-//                try await certificateMaterialManager.deleteCertificateMaterial()
-//                state.isCertificateGenerated = false
-//                state.isCertificateGenerating = false
-//                state.certificateStatus = .requiresGenerating
-//            } catch {
-//                state.certificateStatus = .generationFailed
-//            }
-//        }
-//    }
-//
-//    private func refreshCertificateState() async throws {
-//        let certificateState = try await certificateMaterialManager.certificateState()
-//        state.isCertificateGenerated = certificateState.isGenerated
-//
-//        if certificateState.isGenerated {
-//            state.certificateStatus = .generated
-//        } else {
-//            state.certificateStatus = .requiresGenerating
-//        }
-//    }
-//
-//    private func stopCapture() {
-//        guard !state.isCaptureStopping else { return }
-//
-//        captureOperationID += 1
-//        let inFlightStartTask = proxyControlTask
-//        inFlightStartTask?.cancel()
-//        state.isCaptureStopping = true
-//        state.isCaptureStarting = false
-//        state.captureStatus = "Stopping proxy"
-//
-//        proxyControlTask = Task { [weak self] in
-//            guard let self else { return }
-//
-//            // An in-flight enableProxy XPC call is not interrupted by cancellation;
-//            // wait for it so restore runs after the proxy was actually enabled.
-//            await inFlightStartTask?.value
-//
-//            do {
-//                try await systemProxySettingsManager.restoreProxySettings()
-//                try await proxyServer.stop()
-//                state.captureStatus = "Proxy stopped"
-//                state.proxyRoutingStatus = "System proxy restored"
-//            } catch {
-//                state.captureStatus = "Failed to stop proxy: \(error.localizedDescription)"
-//            }
-//
-//            state.isCaptureStarting = false
-//            state.isCaptureStopping = false
-//            state.isCaptureRunning = false
-//            proxyControlTask = nil
-//        }
-//    }
-//
-//    private func isCurrentCaptureOperation(_ operationID: Int) -> Bool {
-//        captureOperationID == operationID && !Task.isCancelled
-//    }
-//
-//    @discardableResult
-//    private func performCertificateGenerationFlow() async -> Bool {
-//        guard confirmCertificateGeneration() else {
-//            state.certificateStatus = .requiresGenerating
-//            return false
-//        }
-//
-//        state.isCertificateGenerating = true
-//        state.certificateStatus = .generating
-//
-//        do {
-//            _ = try await certificateMaterialManager.ensureCertificateMaterialExists()
-//            state.isCertificateGenerated = true
-//            state.certificateStatus = .generated
-//            state.isCertificateGenerating = false
-//            return true
-//        } catch {
-//            state.isCertificateGenerated = false
-//            state.certificateStatus = .generationFailed
-//            state.isCertificateGenerating = false
-//            return false
-//        }
-//    }
-//
-//    private func requestCertificateGeneration() {
-//        guard certificateGenerationTask == nil else { return }
-//
-//        certificateGenerationTask = Task { [weak self] in
-//            guard let self else { return }
-//            _ = await performCertificateGenerationFlow()
-//            certificateGenerationTask = nil
-//        }
-//    }
-//
-//}
-//
-//extension NetworkingSidebarController {
-//    private func selectSimulator() {
-//        state.isSimulatorSelectionPopoverPresented = true
-//        state.isInstallingOnSimulator = true
-//
-//        do {
-////            state.bootedDevices = try certificateMaterialManager.getBootedSimulators()
-//            state.isInstallingOnSimulator = false
-//        } catch {
-//            state.isInstallingOnSimulator = false
-//        }
-//    }
-//
-//    private func installCertificateOnSelectedSimulator(udid: String) {
-//        guard certInstallTask == nil else { return }
-//
-////        certInstallTask = Task { [weak self] in
-////            guard let self else { return }
-////
-////            do {
-////                try await certificateMaterialManager.installRootCertToSimulator(udid: udid)
-////                state.processingSim?.requiresReboot = true
-////            } catch {
-////                print(error)
-////            }
-////
-////            certInstallTask = nil
-////        }
-//    }
 }
 
 private extension CGRect {
