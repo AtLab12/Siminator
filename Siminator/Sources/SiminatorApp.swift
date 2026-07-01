@@ -46,26 +46,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(workspaceDidActivateApplication),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
 
         networkingSidebarController.connect(
             store: SiminatorApp.store.scope(\.networking, action: \.networking)
         )
 
-//        panelController.onNetworkingEnabledChanged = { [weak self] isEnabled in
-//            self?.networkingSidebarController.setEnabled(isEnabled)
-//        }
-//
-//        networkingSidebarController.onEnabledChanged = { [weak self] isEnabled in
-//            self?.panelController.setNetworkingEnabled(isEnabled)
-//        }
-
         panelController.onPanelInteraction = { [weak self] in
             self?.bringSimulatorWorkspaceToFront()
         }
 
-//        networkingSidebarController.onPanelInteraction = { [weak self] in
-//            self?.bringSimulatorWorkspaceToFront()
-//        }
+        networkingSidebarController.onPanelInteraction = { [weak self] in
+            self?.bringSimulatorWorkspaceToFront()
+        }
 
         tracker.onSimulatorFrameChanged = { [weak self] snapshot in
             guard let self else { return }
@@ -94,6 +93,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         tracker.start()
     }
 
+    @objc private func workspaceDidActivateApplication(_ notification: Notification) {
+        guard
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            isSimulator(application)
+        else {
+            return
+        }
+
+        bringSiminatorPanelsToFront()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.bringSiminatorPanelsToFront()
+        }
+    }
+
     private func bringSimulatorWorkspaceToFront() {
         activateSimulatorIfRunning()
         bringSiminatorPanelsToFront()
@@ -104,17 +118,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func activateSimulatorIfRunning() {
-        guard let simulator = NSWorkspace.shared.runningApplications.first(where: {
-            $0.bundleIdentifier == "com.apple.iphonesimulator" || $0.localizedName == "Simulator"
-        }) else {
+        guard let simulator = NSWorkspace.shared.runningApplications.first(where: isSimulator) else {
             return
         }
 
         simulator.activate(options: [.activateAllWindows])
     }
 
+    private func isSimulator(_ application: NSRunningApplication) -> Bool {
+        application.bundleIdentifier == "com.apple.iphonesimulator"
+            || application.localizedName == "Simulator"
+    }
+
     private func bringSiminatorPanelsToFront() {
         panelController.bringToFrontWithSimulator()
-//        networkingSidebarController.bringToFrontWithSimulator()
+        networkingSidebarController.bringToFrontWithSimulator()
     }
 }
