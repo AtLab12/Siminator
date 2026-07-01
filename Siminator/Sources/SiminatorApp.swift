@@ -11,29 +11,81 @@ struct SiminatorApp: App {
     
     var body: some Scene {
         MenuBarExtra("Siminator", systemImage: "star") {
-            Button("Quit") {
-                SiminatorApp.store.send(.extraMenu(.quit))
-            }
+            SiminatorMenuView(store: Self.store)
+        }
+    }
+}
 
-            Button {
-                SiminatorApp.store.send(.extraMenu(.refreshCertificate))
-            } label: {
-                Label {
-                    Text("Refresh Certificate")
-                } icon: {
-                    Image(systemName: "arrow.trianglehead.counterclockwise")
-                }
-            }
+private struct SiminatorMenuView: View {
+    let store: StoreOf<SiminatorController>
 
-            Button {
-                SiminatorApp.store.send(.extraMenu(.deleteCertificates))
-            } label: {
-                Label {
-                    Text("Delete Certificates")
-                } icon: {
-                    Image(systemName: "trash")
-                }
+    var body: some View {
+        Button("Quit") {
+            store.send(.extraMenu(.quit))
+        }
+
+        Button {
+            store.send(.extraMenu(.simulatorCertificateAction))
+        } label: {
+            Label {
+                Text(simulatorCertificateTitle)
+            } icon: {
+                Image(systemName: simulatorCertificateSystemImage)
             }
+        }
+        .disabled(isSimulatorCertificateActionDisabled)
+
+        Button {
+            store.send(.extraMenu(.refreshCertificate))
+        } label: {
+            Label {
+                Text("Refresh Certificate")
+            } icon: {
+                Image(systemName: "arrow.trianglehead.counterclockwise")
+            }
+        }
+
+        Button {
+            store.send(.extraMenu(.deleteCertificates))
+        } label: {
+            Label {
+                Text("Delete Certificates")
+            } icon: {
+                Image(systemName: "trash")
+            }
+        }
+    }
+
+    private var isSimulatorCertificateActionDisabled: Bool {
+        store.networking.rootCertificateStatus == .loading
+            || store.networking.rootCertificateStatus == .generating
+            || store.networking.isInstallingCertToSim
+            || store.networking.isRebootingSimulators
+    }
+
+    private var simulatorCertificateSystemImage: String {
+        switch store.networking.rootCertificateStatus {
+        case .installed, .rebootFailed:
+            "arrow.trianglehead.2.clockwise.rotate.90"
+        default:
+            "iphone"
+        }
+    }
+
+    private var simulatorCertificateTitle: String {
+        if store.networking.isInstallingCertToSim {
+            return "Installing certificate"
+        }
+
+        if store.networking.isRebootingSimulators {
+            return "Rebooting simulators"
+        }
+
+        switch store.networking.rootCertificateStatus {
+        case .installed, .rebootFailed:
+            return "Reboot simulators"
+        default:
+            return "Install certificate on simulator"
         }
     }
 }

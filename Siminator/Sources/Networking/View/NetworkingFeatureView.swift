@@ -30,18 +30,27 @@ struct NetworkingFeatureView: View {
 
     private var certificateSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if store.rootCertificateStatus == .loading {
+            switch store.rootCertificateStatus {
+            case .loading:
                 ProgressView {
                     Text("Loading certificates ...")
                 }
                 .controlSize(.small)
-            } else if store.rootCertificateStatus == .generated {
+
+            case .generated, .installed:
                 Label(store.rootCertificateStatus.rawValue, systemImage: "checkmark.shield.fill")
                     .font(.callout)
                     .foregroundStyle(.green)
                     .lineLimit(2)
                     .contentTransition(.symbolEffect(.replace))
-            } else {
+
+            case .installFailed, .rebootFailed:
+                Text(store.rootCertificateStatus.rawValue)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+
+            case .generating, .generationFailed, .requiresGenerating, .requiresInstalling:
                 Button {
                     store.send(.view(.generateRootCertificatePressed))
                 } label: {
@@ -60,16 +69,6 @@ struct NetworkingFeatureView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
-            }
-
-            if store.rootCertificateStatus != .loading {
-                Button {
-                    store.send(.view(.installCertificateToSimPressed))
-                } label: {
-                    Label("Install certificate on simulator", systemImage: "iphone")
-                }
-                .buttonStyle(.bordered)
-                .disabled(store.isInstallingCertToSim)
             }
         }
     }

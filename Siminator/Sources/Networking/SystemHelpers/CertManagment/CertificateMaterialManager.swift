@@ -290,31 +290,60 @@ actor CertificateMaterialManager: CertificateMangement {
             || host.contains(":")
     }
 
-    func installRootCertToSimulator(udid: String) throws {
-        let certificateMaterial = try certificateMaterialURLs()
+    func installRootCertToBootedSimulator() async throws {
+        let certificateMaterial = try await ensureCertificateMaterialExists()
 
         _ = try ExecutableHelper().runExecutable(
             "/usr/bin/xcrun",
             arguments: [
                 "simctl",
                 "keychain",
-                udid,
-                "add-root-cert", certificateMaterial.certificateURL.path,
+                "booted",
+                "add-root-cert",
+                certificateMaterial.certificateURL.path,
             ]
         )
     }
+
+    func rebootBootedSimulators() throws {
+        let bootedSimulators = try getBootedSimulators()
+
+        guard !bootedSimulators.isEmpty else {
+            throw CertificateMaterialError.noBootedSimulators
+        }
+
+        for simulator in bootedSimulators {
+            _ = try ExecutableHelper().runExecutable(
+                "/usr/bin/xcrun",
+                arguments: [
+                    "simctl",
+                    "shutdown",
+                    simulator.udid,
+                ]
+            )
+
+            _ = try ExecutableHelper().runExecutable(
+                "/usr/bin/xcrun",
+                arguments: [
+                    "simctl",
+                    "boot",
+                    simulator.udid,
+                ]
+            )
+        }
+    }
     
     func getBootedSimulators() throws -> [SimctlDevice] {
-        guard
-            let output = try? ExecutableHelper().runExecutable(
-                "/usr/bin/xcrun",
-                arguments: ["simctl", "list", "devices", "booted", "--json"]
-            ),
-            let data = output.data(using: .utf8),
-            let deviceList = try? JSONDecoder().decode(SimctlDeviceList.self, from: data)
-        else {
-            return []
+        let output = try ExecutableHelper().runExecutable(
+            "/usr/bin/xcrun",
+            arguments: ["simctl", "list", "devices", "booted", "--json"]
+        )
+
+        guard let data = output.data(using: .utf8) else {
+            throw CertificateMaterialError.invalidSimulatorList
         }
+
+        let deviceList = try JSONDecoder().decode(SimctlDeviceList.self, from: data)
         
         return deviceList.bootedDevices
     }
@@ -332,11 +361,17 @@ struct CertificateMaterialState: Sendable {
 
 enum CertificateMaterialError: LocalizedError {
     case applicationSupportUnavailable
+    case invalidSimulatorList
+    case noBootedSimulators
 
     var errorDescription: String? {
         switch self {
         case .applicationSupportUnavailable:
             "Could not locate the Application Support directory."
+        case .invalidSimulatorList:
+            "Could not read the booted simulator list."
+        case .noBootedSimulators:
+            "No booted simulators were found."
         }
     }
 }

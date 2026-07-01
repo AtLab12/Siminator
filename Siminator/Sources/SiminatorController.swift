@@ -30,6 +30,7 @@ struct SiminatorController {
     }
 
     enum ExtraMenuAction {
+        case simulatorCertificateAction
         case quit
         case refreshCertificate
         case deleteCertificates
@@ -48,7 +49,7 @@ struct SiminatorController {
         Reduce { state, action in
             switch action {
             case .extraMenu(let extraAction):
-                return handleExtraAction(extraAction)
+                return handleExtraAction(extraAction, state: &state)
             
             // Networking
             case .networking:
@@ -64,8 +65,16 @@ struct SiminatorController {
         }
     }
 
-    private func handleExtraAction(_ action: ExtraMenuAction) -> Effect<Action> {
+    private func handleExtraAction(_ action: ExtraMenuAction, state: inout State) -> Effect<Action> {
         switch action {
+        case .simulatorCertificateAction:
+            if state.networking.rootCertificateStatus == .installed
+                || state.networking.rootCertificateStatus == .rebootFailed {
+                return .send(.networking(.view(.rebootSimulatorsPressed)))
+            }
+
+            return .send(.networking(.view(.installCertificateToSimPressed)))
+
         case .quit:
             return .run { send in
                 await MainActor.run {

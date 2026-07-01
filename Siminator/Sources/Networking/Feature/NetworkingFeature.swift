@@ -8,6 +8,7 @@ struct NetworkingFeature {
     struct State {
         var isDetached: Bool
         var isInstallingCertToSim: Bool
+        var isRebootingSimulators: Bool
         var rootCertificateStatus: CertificateStatus
         var session: NetworkingSession.State
 
@@ -20,6 +21,7 @@ struct NetworkingFeature {
         init(
             isDetached: Bool = false,
             isInstallingCertToSim: Bool = false,
+            isRebootingSimulators: Bool = false,
             rootCertificateStatus: CertificateStatus = .loading,
             sidebarController: NetworkingSidebarController? = nil,
             certificateMaterialManager: CertificateMaterialManager = .init(),
@@ -27,6 +29,7 @@ struct NetworkingFeature {
         ) {
             self.isDetached = isDetached
             self.isInstallingCertToSim = isInstallingCertToSim
+            self.isRebootingSimulators = isRebootingSimulators
             self.rootCertificateStatus = rootCertificateStatus
             self.sidebarController = sidebarController
             self.certificateMaterialManager = certificateMaterialManager
@@ -40,8 +43,10 @@ struct NetworkingFeature {
         case deleteAllCertificatesPressed
         case deleteAllResult(Bool)
         case generateRootCertResult(CertificateMaterial?)
+        case installCertificateToSimResult(Result<Void, any Error>)
         case loadCertificateResult(Bool)
         case networkingWindowToggled(Bool)
+        case rebootSimulatorsResult(Result<Void, any Error>)
         case session(NetworkingSession.Action)
         case view(View)
 
@@ -50,6 +55,7 @@ struct NetworkingFeature {
             case generateRootCertificatePressed
             case installCertificateToSimPressed
             case onAppear
+            case rebootSimulatorsPressed
         }
     }
 
@@ -94,6 +100,16 @@ struct NetworkingFeature {
                 state.rootCertificateStatus = result == nil ? .generationFailed : .generated
                 return .none
 
+            case .installCertificateToSimResult(.success):
+                state.isInstallingCertToSim = false
+                state.rootCertificateStatus = .installed
+                return .none
+
+            case .installCertificateToSimResult(.failure):
+                state.isInstallingCertToSim = false
+                state.rootCertificateStatus = .installFailed
+                return .none
+
             case let .loadCertificateResult(value):
                 state.rootCertificateStatus = value ? .generated : .requiresGenerating
                 return .none
@@ -104,6 +120,16 @@ struct NetworkingFeature {
                         controller?.setEnabled(value)
                     }
                 }
+
+            case .rebootSimulatorsResult(.success):
+                state.isRebootingSimulators = false
+                state.rootCertificateStatus = .installed
+                return .none
+
+            case .rebootSimulatorsResult(.failure):
+                state.isRebootingSimulators = false
+                state.rootCertificateStatus = .rebootFailed
+                return .none
 
             case .session:
                 return .none
@@ -126,7 +152,8 @@ struct NetworkingFeature {
             }
 
         case .generateRootCertificatePressed:
-            guard state.rootCertificateStatus == .requiresGenerating else {
+            guard state.rootCertificateStatus == .requiresGenerating
+                || state.rootCertificateStatus == .generationFailed else {
                 return .none
             }
 
@@ -141,10 +168,39 @@ struct NetworkingFeature {
             }
 
         case .installCertificateToSimPressed:
-            return .none
+            guard !state.isInstallingCertToSim else {
+                return .none
+            }
+
+            state.isInstallingCertToSim = true
+            return .run { [certificateMaterialManager = state.certificateMaterialManager] send in
+                await send(
+                    .installCertificateToSimResult(
+                        Result {
+                            try await certificateMaterialManager.installRootCertToBootedSimulator()
+                        }
+                    )
+                )
+            }
 
         case .onAppear:
             return .send(.checkIfCertificatesExist)
+
+        case .rebootSimulatorsPressed:
+            guard !state.isRebootingSimulators else {
+                return .none
+            }
+
+            state.isRebootingSimulators = true
+            return .run { [certificateMaterialManager = state.certificateMaterialManager] send in
+                await send(
+                    .rebootSimulatorsResult(
+                        Result {
+                            try await certificateMaterialManager.rebootBootedSimulators()
+                        }
+                    )
+                )
+            }
         }
     }
 }
@@ -153,8 +209,10 @@ enum CertificateStatus: String {
     case generated = "Certificate generated"
     case generating = "Generation in progress"
     case generationFailed = "Generation failed"
+    case installFailed = "Simulator certificate installation failed"
     case installed = "Certificate installed"
     case loading = "Loading ..."
+    case rebootFailed = "Simulator reboot failed"
     case requiresGenerating = "Please generate the certificate"
     case requiresInstalling = "Please install the certificate"
 }
