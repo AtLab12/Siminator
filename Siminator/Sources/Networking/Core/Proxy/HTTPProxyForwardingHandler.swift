@@ -8,6 +8,10 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
     typealias InboundIn = ByteBuffer
     typealias OutboundOut = ByteBuffer
 
+    private enum Reporting {
+        static let minimumDelta = 16 * 1024
+    }
+
     private enum State {
         case waitingForRequest
         case connecting
@@ -20,6 +24,8 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
     private var pendingInitialBuffer: ByteBuffer?
     private var upstreamChannel: Channel?
     private var currentRequestID: CapturedNetworkRequest.ID?
+    private var currentByteCounts = CapturedNetworkRequestByteCounts()
+    private var lastEmittedRequestBytes = 0
     private var resolvedProcess: CapturedRequestProcess?
     private var pendingTLSBuffer: ByteBuffer?
     private var mitmSetupStarted = false
@@ -62,6 +68,8 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
                 return
             }
 
+            currentByteCounts.requestBytes += buffer.readableBytes
+            emitByteCountsIfNeeded()
             upstreamChannel.writeAndFlush(buffer, promise: nil)
 
         case .closed:
@@ -83,6 +91,7 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
     }
 
     func channelInactive(context: ChannelHandlerContext) {
+        emitByteCounts()
         upstreamChannel?.close(promise: nil)
         upstreamChannel = nil
         state = .closed
@@ -97,6 +106,7 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
                 status: .failed
             ))
         }
+        emitByteCounts()
         closeBoth(context: context)
     }
 
@@ -127,14 +137,11 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
             return
         }
 
-        let bootstrap = ClientBootstrap(group: context.eventLoop)
-            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
-            .channelInitializer { upstreamChannel in
-                upstreamChannel.pipeline.addHandler(UpstreamToClientForwardingHandler(clientChannel: context.channel))
-            }
-
         let requestID = UUID()
+        let requestByteCount = request.forwardedByteCount
         currentRequestID = requestID
+        currentByteCounts = CapturedNetworkRequestByteCounts(requestBytes: requestByteCount)
+        lastEmittedRequestBytes = 0
         emit(.started(CapturedNetworkRequest(
             id: requestID,
             method: request.method,
@@ -145,6 +152,18 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
             status: .inProgress,
             process: resolvedProcess ?? .unknown
         )))
+        emitByteCounts()
+
+        let bootstrap = ClientBootstrap(group: context.eventLoop)
+            .channelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
+            .channelInitializer { [requestEventSink] upstreamChannel in
+                upstreamChannel.pipeline.addHandler(UpstreamToClientForwardingHandler(
+                    clientChannel: context.channel,
+                    requestID: requestID,
+                    initialRequestBytes: requestByteCount,
+                    requestEventSink: requestEventSink
+                ))
+            }
 
         bootstrap.connect(host: request.host, port: request.port).whenComplete { [weak self] result in
             guard let self else {
@@ -295,6 +314,28 @@ final class HTTPProxyForwardingHandler: ChannelInboundHandler, RemovableChannelH
 
     private func emit(_ event: CapturedNetworkRequestEvent) {
         guard let requestEventSink else { return }
+
+        Task { @MainActor in
+            requestEventSink(event)
+        }
+    }
+
+    private func emitByteCountsIfNeeded() {
+        guard currentByteCounts.requestBytes - lastEmittedRequestBytes >= Reporting.minimumDelta else {
+            return
+        }
+
+        emitByteCounts()
+    }
+
+    private func emitByteCounts() {
+        guard let currentRequestID, let requestEventSink else { return }
+        lastEmittedRequestBytes = currentByteCounts.requestBytes
+
+        let event = CapturedNetworkRequestEvent.byteCountsChanged(
+            id: currentRequestID,
+            byteCounts: currentByteCounts
+        )
 
         Task { @MainActor in
             requestEventSink(event)

@@ -289,6 +289,18 @@ extension NetworkingSession.State {
                 request.status = status
             }
 
+        case let .byteCountsChanged(id, byteCounts):
+            updateRequest(id: id) { request in
+                request.byteCounts.requestBytes = max(
+                    request.byteCounts.requestBytes,
+                    byteCounts.requestBytes
+                )
+                request.byteCounts.responseBytes = max(
+                    request.byteCounts.responseBytes,
+                    byteCounts.responseBytes
+                )
+            }
+
         case let .processResolved(id, process):
             updateRequest(id: id) { request in
                 request.process = process

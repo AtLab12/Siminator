@@ -18,6 +18,10 @@ nonisolated struct HTTPProxyInitialRequest: Sendable {
     private let headerText: String
     private let bodyBytes: [UInt8]
 
+    var forwardedByteCount: Int {
+        headerText.utf8.count + bodyBytes.count
+    }
+
     init?(buffer: ByteBuffer) {
         guard let requestBytes = buffer.getBytes(at: buffer.readerIndex, length: buffer.readableBytes),
               let headerEnd = requestBytes.firstRange(of: [13, 10, 13, 10])

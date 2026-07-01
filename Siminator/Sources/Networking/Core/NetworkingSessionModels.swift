@@ -22,6 +22,7 @@ struct CapturedNetworkRequest: Identifiable, Sendable {
     let id: UUID
     var startedAt: Date = .init()
     var completedAt: Date?
+    var byteCounts = CapturedNetworkRequestByteCounts()
     var method: String
     var scheme: String
     var host: String
@@ -53,9 +54,20 @@ struct CapturedNetworkRequest: Identifiable, Sendable {
     }
 }
 
+struct CapturedNetworkRequestByteCounts: Equatable, Sendable {
+    var requestBytes = 0
+    var responseBytes = 0
+
+    init(requestBytes: Int = 0, responseBytes: Int = 0) {
+        self.requestBytes = requestBytes
+        self.responseBytes = responseBytes
+    }
+}
+
 enum CapturedNetworkRequestEvent: Sendable {
     case started(CapturedNetworkRequest)
     case statusChanged(id: CapturedNetworkRequest.ID, status: CapturedRequestStatus)
+    case byteCountsChanged(id: CapturedNetworkRequest.ID, byteCounts: CapturedNetworkRequestByteCounts)
     case processResolved(id: CapturedNetworkRequest.ID, process: CapturedRequestProcess)
 }
 

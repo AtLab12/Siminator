@@ -92,8 +92,8 @@ private struct CapturedRequestSummary: View {
             DetailSummaryRow(title: "Status:", value: request.status.detailText)
             DetailSummaryRow(title: "Time:", value: request.startedAt.networkingSummaryTime)
             DetailSummaryRow(title: "Duration:", value: request.durationText)
-            DetailSummaryRow(title: "Request size:", value: "----")
-            DetailSummaryRow(title: "Response size:", value: "----")
+            DetailSummaryRow(title: "Request size:", value: request.byteCounts.requestBytes.byteCountText)
+            DetailSummaryRow(title: "Response size:", value: request.byteCounts.responseBytes.byteCountText)
 
             if showsDetachButton {
                 Button(action: onDetach) {
@@ -146,6 +146,12 @@ private extension CapturedNetworkRequest {
 
         let milliseconds = max(1, Int((completedAt.timeIntervalSince(startedAt) * 1000).rounded()))
         return "\(milliseconds) ms"
+    }
+}
+
+private extension Int {
+    var byteCountText: String {
+        ByteCountFormatter.string(fromByteCount: Int64(self), countStyle: .file)
     }
 }
 
