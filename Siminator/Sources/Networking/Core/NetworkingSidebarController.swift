@@ -1,6 +1,6 @@
 import AppKit
-import SwiftUI
 import ComposableArchitecture
+import SwiftUI
 
 @MainActor
 final class NetworkingSidebarController: NSObject, NSWindowDelegate {
@@ -11,7 +11,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     private(set) var isNetworkingEnabled: Bool = false
-    
+
     private let panel: SiminatorPanel
     private var simulatorFrame: CGRect?
     private var simulatorWindowNumber: Int?
@@ -38,13 +38,13 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         super.init()
 
         panel.delegate = self
-        
+
         configureDockedPanel()
     }
 
     func connect(store: StoreOf<NetworkingFeature>) {
         store.send(.connectController(self))
-        
+
         let hostingView = NSHostingView(
             rootView: NetworkingFeatureView(store: store)
                 .environment(AppIconCache.shared)
@@ -54,14 +54,14 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         panel.contentView = hostingView
     }
-    
+
     private func configureDockedPanel() {
         panel.onUserInteraction = { [weak self] in
             if !(self?.isDetached ?? true) {
                 self?.onPanelInteraction?()
             }
         }
-        
+
         panel.isReleasedWhenClosed = false
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -84,7 +84,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             .fullScreenAuxiliary,
         ]
     }
-    
+
     private func showIfPossible() {
         guard let simulatorFrame else { return }
 
@@ -99,13 +99,13 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         move(to: visibleFrame(for: simulatorFrame))
     }
-    
+
     private func orderBelowSimulatorWindow() {
         guard !isDetached else { return }
         guard let simulatorWindowNumber, panel.isVisible else { return }
         panel.order(.below, relativeTo: simulatorWindowNumber)
     }
-    
+
     private func hiddenFrame(for simulatorFrame: CGRect) -> CGRect {
         let screenFrame = SimulatorWindowGeometry.simulatorScreenFrame(from: simulatorFrame)
 
@@ -116,13 +116,13 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             height: screenFrame.height
         )
     }
-    
+
     private func move(to frame: CGRect) {
         targetFrame = frame
         orderBelowSimulatorWindow()
         startMovementTimer()
     }
-    
+
     private func visibleFrame(for simulatorFrame: CGRect) -> CGRect {
         let screenFrame = SimulatorWindowGeometry.simulatorScreenFrame(from: simulatorFrame)
 
@@ -133,10 +133,9 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             height: screenFrame.height
         )
     }
-    
 
     func setEnabled(_ isEnabled: Bool) {
-        self.isNetworkingEnabled = isEnabled
+        isNetworkingEnabled = isEnabled
         if isEnabled {
             showIfPossible()
         } else {
@@ -165,25 +164,25 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
 
         showIfPossible()
     }
-    
+
     private func hide() {
         if isDetached {
             detachedFrame = panel.frame
             hideImmediately()
             return
         }
-        
+
         guard let simulatorFrame else {
             hideImmediately()
             return
         }
-        
+
         guard panel.isVisible else { return }
-        
+
         shouldOrderOutAfterAnimation = true
         move(to: hiddenFrame(for: simulatorFrame))
     }
-    
+
     func windowShouldClose(_: NSWindow) -> Bool {
         setEnabled(false)
         return false
@@ -202,14 +201,39 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
     }
 
     func setDetached(_ value: Bool) {
-        guard self.isDetached != value else { return }
-        self.isDetached = value
-        
+        guard isDetached != value else { return }
+        isDetached = value
+
         if value {
             detachFromSimulator()
         } else {
             dockToSimulator()
         }
+    }
+
+    func detachForRequestPreview() {
+        stopMovementTimer()
+        targetFrame = nil
+        shouldOrderOutAfterAnimation = false
+
+        if !isDetached {
+            isDetached = true
+            configureDetachedPanel()
+        }
+
+        let frame = squarePreviewFrame(from: panel.frame)
+        detachedFrame = frame
+
+        if !panel.isVisible {
+            panel.setFrame(frame, display: false, animate: false)
+            panel.orderFrontRegardless()
+        } else {
+            panel.orderFrontRegardless()
+        }
+
+        panel.makeKey()
+        clearInitialTextFieldFocus()
+        panel.setFrame(frame, display: true, animate: true)
     }
 
     private func detachFromSimulator() {
@@ -247,6 +271,16 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
         clearInitialTextFieldFocus()
     }
 
+    private func squarePreviewFrame(from frame: CGRect) -> CGRect {
+        let side = max(frame.height, Layout.minimumDetachedHeight)
+        return CGRect(
+            x: frame.minX,
+            y: frame.minY,
+            width: side,
+            height: side
+        )
+    }
+
     private func clearInitialTextFieldFocus() {
         panel.makeFirstResponder(nil)
 
@@ -261,7 +295,7 @@ final class NetworkingSidebarController: NSObject, NSWindowDelegate {
             .titled,
             .closable,
             .miniaturizable,
-            .resizable
+            .resizable,
         ]
         panel.titleVisibility = .visible
         panel.titlebarAppearsTransparent = false

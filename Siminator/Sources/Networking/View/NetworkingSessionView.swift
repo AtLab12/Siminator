@@ -3,6 +3,8 @@ import SwiftUI
 
 struct NetworkingSessionView: View {
     @Bindable var store: StoreOf<NetworkingSession>
+    let isDetached: Bool
+
     @FocusState private var isSessionTitleFocused: Bool
     @FocusState private var isURLFilterFocused: Bool
 
@@ -139,7 +141,17 @@ struct NetworkingSessionView: View {
             ScrollView {
                 LazyVStack {
                     ForEach(store.filteredRequests.reversed()) { request in
-                        CapturedRequestRow(request: request)
+                        CapturedRequestRow(
+                            request: request,
+                            isExpanded: store.expandedRequestID == request.id,
+                            showsDetachButton: !isDetached,
+                            onToggle: {
+                                store.send(.requestRowTapped(request.id), animation: .default)
+                            },
+                            onDetach: {
+                                store.send(.requestSummaryDetachButtonTapped)
+                            }
+                        )
                     }
                 }
                 .padding(.vertical)

@@ -1,9 +1,47 @@
+import Foundation
 import SwiftUI
 
 struct CapturedRequestRow: View {
     let request: CapturedNetworkRequest
+    let isExpanded: Bool
+    let showsDetachButton: Bool
+    let onToggle: () -> Void
+    let onDetach: () -> Void
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button(action: onToggle) {
+                rowHeader
+                    .contentShape(.rect(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Show request details")
+
+            if isExpanded {
+                CapturedRequestSummary(
+                    request: request,
+                    showsDetachButton: showsDetachButton,
+                    onDetach: onDetach
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.regularMaterial)
+                .shadow(color: statusColor.opacity(0.55), radius: isExpanded ? 12 : 7, x: 0, y: 3)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+        }
+        .padding(.horizontal, 16)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isExpanded)
+    }
+
+    private var rowHeader: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(request.displayURL)
@@ -29,15 +67,6 @@ struct CapturedRequestRow: View {
             RequestProcessIcon(process: request.process)
                 .frame(width: 28, height: 28)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
-        }
-        .padding(.horizontal, 16)
-        .shadow(color: statusColor.opacity(0.55), radius: 7, x: 0, y: 3)
     }
 
     private var statusColor: Color {
@@ -49,6 +78,96 @@ struct CapturedRequestRow: View {
         case .failed:
             return .red
         }
+    }
+}
+
+private struct CapturedRequestSummary: View {
+    let request: CapturedNetworkRequest
+    let showsDetachButton: Bool
+    let onDetach: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            DetailSummaryRow(title: "Method:", value: request.method.uppercased())
+            DetailSummaryRow(title: "Status:", value: request.status.detailText)
+            DetailSummaryRow(title: "Time:", value: request.startedAt.networkingSummaryTime)
+            DetailSummaryRow(title: "Duration:", value: request.durationText)
+            DetailSummaryRow(title: "Request size:", value: "----")
+            DetailSummaryRow(title: "Response size:", value: "----")
+
+            if showsDetachButton {
+                Button(action: onDetach) {
+                    Text("Detach to preview details")
+                        .font(.callout)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background {
+                            Capsule()
+                                .fill(.thinMaterial)
+                                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        }
+                        .overlay {
+                            Capsule()
+                                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Detach to preview details")
+                .padding(.top, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .font(.callout)
+        .foregroundStyle(.primary)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: showsDetachButton)
+    }
+}
+
+private struct DetailSummaryRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .frame(width: 92, alignment: .leading)
+            Text(value)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+}
+
+private extension CapturedNetworkRequest {
+    var durationText: String {
+        guard let completedAt else {
+            return "In progress"
+        }
+
+        let milliseconds = max(1, Int((completedAt.timeIntervalSince(startedAt) * 1000).rounded()))
+        return "\(milliseconds) ms"
+    }
+}
+
+private extension CapturedRequestStatus {
+    var detailText: String {
+        switch self {
+        case .inProgress:
+            return "In progress"
+        case .succeeded:
+            return "Succeeded"
+        case .failed:
+            return "Failed"
+        }
+    }
+}
+
+private extension Date {
+    var networkingSummaryTime: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter.string(from: self)
     }
 }
 

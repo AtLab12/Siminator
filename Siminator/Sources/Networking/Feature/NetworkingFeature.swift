@@ -131,6 +131,12 @@ struct NetworkingFeature {
                 state.rootCertificateStatus = .rebootFailed
                 return .none
 
+            case .session(.requestSummaryDetachButtonTapped):
+                state.isDetached = true
+                return .run { [controller = state.sidebarController] _ in
+                    await controller?.detachForRequestPreview()
+                }
+
             case .session:
                 return .none
 
@@ -153,7 +159,8 @@ struct NetworkingFeature {
 
         case .generateRootCertificatePressed:
             guard state.rootCertificateStatus == .requiresGenerating
-                || state.rootCertificateStatus == .generationFailed else {
+                || state.rootCertificateStatus == .generationFailed
+            else {
                 return .none
             }
 

@@ -20,6 +20,8 @@ struct CapturedRequestProcess: Hashable, Sendable {
 
 struct CapturedNetworkRequest: Identifiable, Sendable {
     let id: UUID
+    var startedAt: Date = .init()
+    var completedAt: Date?
     var method: String
     var scheme: String
     var host: String

@@ -14,7 +14,10 @@ struct NetworkingFeatureView: View {
             }
             .padding(.horizontal, 16)
 
-            NetworkingSessionView(store: store.scope(state: \.session, action: \.session))
+            NetworkingSessionView(
+                store: store.scope(state: \.session, action: \.session),
+                isDetached: store.isDetached
+            )
         }
         .padding(.top, 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

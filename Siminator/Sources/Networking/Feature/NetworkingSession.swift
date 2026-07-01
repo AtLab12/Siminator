@@ -19,6 +19,7 @@ struct NetworkingSession {
         var activeSessionTitle: String
         var appFilters: [SessionLogAppFilter] = []
         var captureStatus: CaptureStatus = .stopped
+        var expandedRequestID: CapturedNetworkRequest.ID?
         var filteredRequests: [CapturedNetworkRequest] = []
         var selectedAppFilter: SessionLogAppFilter?
         var settingsEnabled = false
@@ -37,7 +38,6 @@ struct NetworkingSession {
         init(
             activeSession: NetworkingCaptureSession = .init()
         ) {
-            
             self.activeSession = activeSession
             activeSessionTitle = activeSession.title
         }
@@ -127,6 +127,8 @@ struct NetworkingSession {
         case clearURLFilterButtonTapped
         case requestEvent(CapturedNetworkRequestEvent)
         case requestEventsTask
+        case requestRowTapped(CapturedNetworkRequest.ID)
+        case requestSummaryDetachButtonTapped
         case sessionBrowserButtonTapped
         case settingsButtonTapped
         case startCaptureResponse(Result<NetworkingSessionClient.StartResult, any Error>)
@@ -201,6 +203,13 @@ struct NetworkingSession {
                 }
                 .cancellable(id: CancelID.requestEvents, cancelInFlight: true)
 
+            case let .requestRowTapped(id):
+                state.expandedRequestID = state.expandedRequestID == id ? nil : id
+                return .none
+
+            case .requestSummaryDetachButtonTapped:
+                return .none
+
             case .sessionBrowserButtonTapped:
                 state.showSessionBrowser.toggle()
                 return .none
@@ -264,6 +273,7 @@ extension NetworkingSession.State {
         filteredRequestIndexes.removeAll(keepingCapacity: true)
         filteredRequests.removeAll(keepingCapacity: true)
         requestIndexes.removeAll(keepingCapacity: true)
+        expandedRequestID = nil
         selectedAppFilter = nil
         totalRequestCount = 0
         visibleRequests.removeAll(keepingCapacity: true)
@@ -295,6 +305,7 @@ extension NetworkingSession.State {
 
         guard settingsEnabled else {
             filteredRequests = visibleRequests
+            clearExpandedRequestIfNeeded()
             return
         }
 
@@ -303,6 +314,7 @@ extension NetworkingSession.State {
 
         guard !query.isEmpty || appFilter != nil else {
             filteredRequests = visibleRequests
+            clearExpandedRequestIfNeeded()
             return
         }
 
@@ -315,6 +327,8 @@ extension NetworkingSession.State {
 
             return matchesURL && matchesApp
         }
+
+        clearExpandedRequestIfNeeded()
     }
 
     private mutating func append(_ request: CapturedNetworkRequest) {
@@ -369,6 +383,13 @@ extension NetworkingSession.State {
         }
     }
 
+    private mutating func clearExpandedRequestIfNeeded() {
+        guard let expandedRequestID else { return }
+        if !filteredRequests.contains(where: { $0.id == expandedRequestID }) {
+            self.expandedRequestID = nil
+        }
+    }
+
     private mutating func refreshAppFilters() {
         var filtersByID: [SessionLogAppFilter.ID: SessionLogAppFilter] = [:]
 
@@ -400,8 +421,15 @@ extension NetworkingSession.State {
 
         update(&visibleRequests[index])
 
+        if visibleRequests[index].status != .inProgress,
+           visibleRequests[index].completedAt == nil
+        {
+            visibleRequests[index].completedAt = Date()
+        }
+
         if let filteredIndex = filteredRequestIndexes[id],
-           filteredRequests.indices.contains(filteredIndex) {
+           filteredRequests.indices.contains(filteredIndex)
+        {
             filteredRequests[filteredIndex] = visibleRequests[index]
         }
     }
